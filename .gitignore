@@ -1,1 +1,4 @@
-jobs.db
+*.db
+config.py
+tailored_resumes/*
+resumes/*

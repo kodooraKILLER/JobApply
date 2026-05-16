@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Tailoring Visualizer</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://unpkg.com/diff2html/bundles/css/diff2html.min.css">
+    
+    <style>
+        body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
+        .container-fluid { padding-left: 3%; padding-right: 3%; }
+        
+        .accordion-item { background-color: #1e293b; border: 1px solid #334155; margin-bottom: 1rem; }
+        .accordion-button { background-color: #1e293b; color: #38bdf8; font-weight: 600; }
+        .accordion-button:not(.collapsed) { background-color: #2d3748; color: #7dd3fc; box-shadow: none; }
+        .accordion-button::after { filter: invert(1); }
+        .accordion-body { padding: 0; background-color: #0f172a; }
+
+        .d2h-wrapper {
+            --d2h-bg-color: #0f172a;
+            --d2h-border-color: #334155;
+            border: none !important;
+        }
+
+        .d2h-file-header { display: none; }
+        
+        /* Editable Cell Styling */
+        .editable-cell { outline: none; cursor: text; transition: background 0.2s; white-space: pre !important; }
+        .editable-cell:focus { background-color: #1e293b !important; box-shadow: inset 0 0 0 1px #38bdf8; }
+
+        /* Transfer Button */
+        .transfer-btn {
+            cursor: pointer;
+            color: #38bdf8;
+            font-weight: 800;
+            margin-right: 8px;
+            user-select: none;
+            display: inline-block;
+            transition: transform 0.1s, color 0.2s;
+            font-family: monospace;
+            font-size: 1.1em;
+        }
+        .transfer-btn:hover { color: #7dd3fc; transform: scale(1.3); }
+        .transfer-btn:active { transform: scale(0.9); }
+
+        .nested-header { padding: 0.75rem 1.25rem; background: #1e293b; color: #94a3b8; font-size: 1rem; border-top: 2px solid #0f172a; font-weight: 500; }
+        .back-btn { color: #94a3b8; text-decoration: none; font-weight: 600; }
+        .back-btn:hover { color: #38bdf8; }
+        
+        .loading-overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #0f172a; display: flex; 
+            justify-content: center; align-items: center; z-index: 1000; 
+        }
+
+        #sync-status { font-size: 0.75rem; transition: opacity 0.3s; }
+        .status-saving { color: #fbbf24; }
+        .status-saved { color: #10b981; }
+
+        /* Floating Popup Styling Customization */
+        .toast-container { z-index: 1055; }
+        .custom-toast { background-color: #1e293b; color: #f8fafc; border: 1px solid #334155; }
+    </style>
+</head>
+<body>
+
+<div id="loader" class="loading-overlay">
+    <div class="text-center">
+        <div class="spinner-border text-primary mb-2" role="status"></div>
+        <div class="small text-muted">Initializing Editor...</div>
+    </div>
+</div>
+
+<div class="container-fluid my-4">
+    <header class="mb-4 d-flex justify-content-between align-items-center">
+        <a href="/" class="back-btn"><i class="bi bi-arrow-left"></i> RETURN TO TRACKER</a>
+        <div class="text-center">
+            <h2 class="fw-bold mb-0">RESUME COMPARISON</h2>
+            <div id="sync-status" class="text-uppercase opacity-0">Drafting Changes...</div>
+        </div>
+        <div class="text-end d-flex gap-2" style="width: auto;">
+            <button id="copy-btn" class="btn btn-sm btn-outline-secondary fw-bold" onclick="copyResumePath()">
+                <i class="bi bi-clipboard"></i> COPY PATH
+            </button>
+            <button id="save-btn" class="btn btn-sm btn-outline-info fw-bold" onclick="confirmAndSync()">
+                <i class="bi bi-cloud-arrow-up"></i> CONFIRM EDITS & SYNC
+            </button>
+        </div> 
+    </header>
+
+    <div class="accordion" id="resumeAccordion"></div>
+</div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="popupToast" class="toast custom-toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex align-items-center p-2">
+            <div id="toast-icon" class="me-2 fs-5"></div>
+            <div class="toast-body fw-medium" id="toast-message">
+                Placeholder message.
+            </div>
+            <button type="button" class="btn-close btn-close-white ms-auto me-1" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/diff/dist/diff.min.js"></script>
+<script src="https://unpkg.com/diff2html/bundles/js/diff2html.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    let baseResume = {};
+    let tailoredResume = {};
+    let jobId = null;
+    let debounceTimer;
+
+    async function loadAndCompare() {
+        const urlParams = new URLSearchParams(window.location.search);
+        jobId = urlParams.get('jobId');
+
+        if (!jobId) {
+            document.getElementById('loader').style.display = 'none';
+            return;
+        }
+
+        try {
+            const [baseRes, tailoredRes] = await Promise.all([
+                fetch('/base-resume').then(res => res.json()),
+                fetch(`/resume/${jobId}`).then(res => res.json())
+            ]);
+
+            baseResume = baseRes.resume;
+            tailoredResume = tailoredRes.resume;
+
+            renderUI();
+        } catch (error) {
+            console.error("Comparison Error:", error);
+        } finally {
+            document.getElementById('loader').style.display = 'none';
+        }
+    }
+
+    function renderUI() {
+        const container = document.getElementById('resumeAccordion');
+        container.innerHTML = '';
+
+        // 1. Skillset
+        appendSection('Skillset', 'skillset', 'diff-skillset');
+        renderDiff(baseResume.Skillset, tailoredResume.Skillset, 'diff-skillset', ['Skillset']);
+
+        // 2. Work Experience
+        appendSection('Work Experience', 'work', 'work-container', false);
+        const workParent = document.getElementById('work-container');
+        Object.keys(baseResume["Work experience"]).forEach(role => {
+            const id = `work-${role.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`;
+            
+            const header = document.createElement('div');
+            header.className = 'nested-header';
+            header.innerText = role;
+            
+            const diffDiv = document.createElement('div');
+            diffDiv.id = id;
+            
+            workParent.appendChild(header);
+            workParent.appendChild(diffDiv);
+            
+            renderDiff(baseResume["Work experience"][role], tailoredResume["Work experience"][role], id, ['Work experience', role]);
+        });
+
+        // 3. Projects
+        appendSection('Projects', 'projects', 'projects-container', false);
+        const projectParent = document.getElementById('projects-container');
+        Object.keys(baseResume.Projects).forEach(project => {
+            const id = `project-${project.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`;
+            
+            const header = document.createElement('div');
+            header.className = 'nested-header';
+            header.innerText = project;
+            
+            const diffDiv = document.createElement('div');
+            diffDiv.id = id;
+            
+            projectParent.appendChild(header);
+            projectParent.appendChild(diffDiv);
+            
+            renderDiff(baseResume.Projects[project], tailoredResume.Projects[project], id, ['Projects', project]);
+        });
+    }
+
+    function appendSection(title, collapseId, bodyId, isShow = true) {
+        const container = document.getElementById('resumeAccordion');
+        const html = `
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button ${isShow ? '' : 'collapsed'}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${collapseId}">
+                        ${title}
+                    </button>
+                </h2>
+                <div id="collapse${collapseId}" class="accordion-collapse collapse ${isShow ? 'show' : ''}">
+                    <div class="accordion-body" id="${bodyId}"></div>
+                </div>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', html);
+    }
+
+    function renderDiff(baseData, tailoredData, elementId, path) {
+        const baseString = JSON.stringify(baseData, null, 2);
+        const tailoredString = JSON.stringify(tailoredData, null, 2);
+        
+        const maxLines = Math.max(baseString.split('\n').length, tailoredString.split('\n').length);
+
+        const patch = Diff.createTwoFilesPatch('Base', 'Tailored', 
+            baseString, 
+            tailoredString,
+            '', '',
+            { context: maxLines }
+        );
+
+        const diffHtml = Diff2Html.html(patch, {
+            drawFileList: false,
+            matching: 'lines',
+            outputFormat: 'side-by-side',
+            colorScheme: 'dark'
+        });
+
+        const target = document.getElementById(elementId);
+        target.innerHTML = diffHtml;
+
+        const sides = target.querySelectorAll('.d2h-file-side-diff');
+        if (sides.length < 2) return;
+
+        const leftSide = sides[0];
+        const rightSide = sides[1];
+
+        const leftLines = leftSide.querySelectorAll('.d2h-code-line-ctn');
+        const rightLines = rightSide.querySelectorAll('.d2h-code-line-ctn');
+
+        leftLines.forEach((leftCell, index) => {
+            const rightCell = rightLines[index];
+            if (!rightCell) return;
+
+            rightCell.contentEditable = "true";
+            rightCell.classList.add('editable-cell');
+            
+            rightCell.oninput = () => {
+                showStatus('Typing...', 'saving');
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => updateData(rightSide, path, elementId), 600);
+            };
+
+            const btn = document.createElement('span');
+            btn.className = 'transfer-btn';
+            btn.innerHTML = '>>';
+            btn.contentEditable = "false"; 
+            
+            btn.onclick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const textContent = Array.from(leftCell.childNodes)
+                    .filter(node => node !== btn)
+                    .map(node => node.textContent)
+                    .join('');
+                
+                rightCell.innerText = textContent;
+                showStatus('Syncing...', 'saving');
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => updateData(rightSide, path, elementId), 100);
+            };
+            
+            leftCell.prepend(btn);
+        });
+    }
+
+    function updateData(element, path, elementId) {
+        const jsonString = Array.from(element.querySelectorAll('.d2h-code-line-ctn'))
+                                .map(el => el.innerText.replace(/\u00a0/g, ' '))
+                                .join('\n');
+        try {
+            const updated = JSON.parse(jsonString);
+            
+            if (path.length === 1) {
+                tailoredResume[path[0]] = updated;
+            } else {
+                if (!tailoredResume[path[0]]) tailoredResume[path[0]] = {};
+                tailoredResume[path[0]][path[1]] = updated;
+            }
+
+            showStatus('Recomputed', 'saved');
+            
+            const baseData = path.length === 1 ? baseResume[path[0]] : baseResume[path[0]][path[1]];
+            renderDiff(baseData, updated, elementId, path);
+            
+        } catch (e) {
+            showStatus('Invalid JSON', 'saving');
+        }
+    }
+
+    async function confirmAndSync() {
+        const btn = document.getElementById('save-btn');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> SYNCING...`;
+
+        try {
+            const response = await fetch(`/update-resume/${jobId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resume: tailoredResume })
+            });
+
+            if (response.ok) {
+                btn.className = "btn btn-sm btn-success fw-bold";
+                btn.innerHTML = `<i class="bi bi-check-circle-fill"></i> SYNCED SUCCESSFULLY`;
+                setTimeout(() => {
+                    btn.className = "btn btn-sm btn-outline-info fw-bold";
+                    btn.innerHTML = originalHtml;
+                    btn.disabled = false;
+                }, 3000);
+            } else {
+                throw new Error("Failed to save");
+            }
+        } catch (err) {
+            alert("Error saving resume: " + err.message);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+
+    // New Function to check and copy path with a floating popup toast
+    async function copyResumePath() {
+        if (!jobId) return;
+        
+        const msgEl = document.getElementById('toast-message');
+        const iconEl = document.getElementById('toast-icon');
+        const toastNode = document.getElementById('popupToast');
+        const toast = new bootstrap.Toast(toastNode, { delay: 3500 });
+
+        try {
+            const response = await fetch(`/fetch_resume_path/${jobId}`);
+            const data = await response.json();
+
+            if (response.ok && data.status === "success") {
+                // Copy to clipboard
+                await navigator.clipboard.writeText(data.resume_path);
+                
+                // Show Success Toast
+                iconEl.className = "bi bi-clipboard-check-fill text-success";
+                msgEl.innerText = "Path successfully copied to clipboard!";
+                toast.show();
+            } else {
+                // Show Not Found Warning Toast
+                iconEl.className = "bi bi-exclamation-triangle-fill text-warning";
+                msgEl.innerText = data.message || "Resume path has not been formed yet.";
+                toast.show();
+            }
+        } catch (err) {
+            // Show Error Toast
+            iconEl.className = "bi bi-x-circle-fill text-danger";
+            msgEl.innerText = "Failed to query the resume path.";
+            toast.show();
+        }
+    }
+
+    function showStatus(text, type) {
+        const el = document.getElementById('sync-status');
+        if (!el) return;
+        el.innerText = text;
+        el.className = `text-uppercase opacity-100 status-${type}`;
+        setTimeout(() => el.classList.add('opacity-0'), 2000);
+    }
+
+    window.addEventListener('load', loadAndCompare);
+</script>
+</body>
+</html>

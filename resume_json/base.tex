@@ -1,0 +1,226 @@
+\documentclass[10pt, letterpaper]{article}
+
+% Packages:
+\usepackage[
+    ignoreheadfoot,
+    top=2 cm,
+    bottom=2 cm,
+    left=2 cm,
+    right=2 cm,
+    footskip=1.0 cm,
+]{geometry}
+\usepackage{titlesec} 
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage[dvipsnames]{xcolor}
+\definecolor{primaryColor}{RGB}{0, 0, 0}
+\usepackage{enumitem}
+\usepackage{fontawesome5}
+\usepackage{amsmath}
+\usepackage[
+    pdftitle={Senthil},
+    pdfauthor={Senthil},
+    pdfcreator={Senthil},
+    colorlinks=true,
+    urlcolor=primaryColor
+]{hyperref}
+\usepackage[pscoord]{eso-pic}
+\usepackage{calc}
+\usepackage{bookmark}
+\usepackage{lastpage}
+\usepackage{changepage}
+\usepackage{paracol}
+\usepackage{ifthen}
+\usepackage{needspace}
+\usepackage{iftex}
+
+% Ensure that generate pdf is machine readable/ATS parsable:
+\ifPDFTeX
+    \input{glyphtounicode}
+    \pdfgentounicode=1
+    \usepackage[T1]{fontenc}
+    \usepackage[utf8]{inputenc}
+    \usepackage{lmodern}
+\fi
+
+\usepackage{charter}
+
+% Some settings:
+\raggedright
+\AtBeginEnvironment{adjustwidth}{\partopsep0pt}
+\pagestyle{empty}
+\setcounter{secnumdepth}{0}
+\setlength{\parindent}{0pt}
+\setlength{\topskip}{0pt}
+\setlength{\columnsep}{0.15cm}
+\pagenumbering{gobble}
+
+\titleformat{\section}{\needspace{4\baselineskip}\bfseries\large}{}{0pt}{}[\vspace{1pt}\titlerule]
+
+\titlespacing{\section}{-1pt}{0.3 cm}{0.2 cm}
+
+\renewcommand\labelitemi{$\vcenter{\hbox{\small$\bullet$}}$}
+\newenvironment{highlights}{
+    \begin{itemize}[
+        topsep=0.10 cm,
+        parsep=0.10 cm,
+        partopsep=0pt,
+        itemsep=0pt,
+        leftmargin=0 cm + 10pt
+    ]
+}{
+    \end{itemize}
+}
+
+\newenvironment{highlightsforbulletentries}{
+    \begin{itemize}[
+        topsep=0.10 cm,
+        parsep=0.10 cm,
+        partopsep=0pt,
+        itemsep=0pt,
+        leftmargin=10pt
+    ]
+}{
+    \end{itemize}
+}
+
+\newenvironment{onecolentry}{
+    \begin{adjustwidth}{0 cm + 0.00001 cm}{0 cm + 0.00001 cm}
+}{
+    \end{adjustwidth}
+}
+
+\newenvironment{twocolentry}[2][]{
+    \onecolentry
+    \def\secondColumn{#2}
+    \setcolumnwidth{\fill, 4.5 cm}
+    \begin{paracol}{2}
+}{
+    \switchcolumn \raggedleft \secondColumn
+    \end{paracol}
+    \endonecolentry
+}
+
+\newenvironment{header}{
+    \setlength{\topsep}{0pt}\par\kern\topsep\centering\linespread{1.5}
+}{
+    \par\kern\topsep
+}
+
+\let\hrefWithoutArrow\href
+
+\begin{document}
+    \newcommand{\AND}{\unskip
+        \cleaders\copy\ANDbox\hskip\wd\ANDbox
+        \ignorespaces
+    }
+    \newsavebox\ANDbox
+    \sbox\ANDbox{$|$}
+
+    \begin{header}
+        \fontsize{25 pt}{25 pt}\selectfont Senthil Kumar R\\[5pt]
+        \normalsize
+        \mbox{\hrefWithoutArrow{mailto:emailofrsk@gmail.com}{emailofrsk@gmail.com}}%
+        \kern 5.0 pt%
+        \AND%
+        \kern 5.0 pt%
+        \mbox{\hrefWithoutArrow{tel:+91-733-965-9559}{733 965 9559}}%
+        \kern 5.0 pt%
+        \AND%
+        \kern 5.0 pt%
+        \mbox{\hrefWithoutArrow{https://linkedin.com/in/senthilium}{linkedin.com/in/senthilium}}%
+        \kern 5.0 pt%
+    \end{header}
+
+    \begin{onecolentry}
+    \vspace{1 cm}
+        A \textbf{\textit{creative} Data Engineer} who’s excited about AWS, Data Science and everything in between! Demonstrated experience and excellence in complex and cross-functional projects involving \textbf{Big Data, Stream Processing, AWS, Orchestration and Artificial Intelligence}.
+    \end{onecolentry}
+
+    \section{Skills}
+    \begin{onecolentry}
+        \begin{highlightsforbulletentries}
+        {% for skill in Skillset %}
+            \item {{ skill }}
+        {% endfor %}
+        \end{highlightsforbulletentries}
+    \end{onecolentry}
+
+    \section{Experience}
+        \begin{twocolentry}{Nov 2024 – Present}
+            \textbf{Associate Data Engineer, JPMorganChase}\end{twocolentry}
+        \vspace{0.10 cm}
+        \begin{onecolentry}
+            \begin{highlights}
+            {% for bullet in Work_experience['Associate Software Engineer, JP Morgan Chase'] %}
+                \item {{ bullet }}
+            {% endfor %}
+            \end{highlights}
+        \end{onecolentry}
+
+        \vspace{0.3 cm}
+
+        \begin{twocolentry}{July 2022 – Oct 2024}
+            \textbf{Software Analyst, JPMorganChase}\end{twocolentry}
+        \vspace{0.10 cm}
+        \begin{onecolentry}
+            \begin{highlights}
+            {% for bullet in Work_experience['Software Engineer, JP Morgan Chase'] %}
+                \item {{ bullet }}
+            {% endfor %}
+            \end{highlights}
+        \end{onecolentry}
+
+        \vspace{0.3 cm}
+
+        \begin{twocolentry}{Jan 2022 – June 2022}
+            \textbf{Software Engineer Intern, JP Morgan Chase}\end{twocolentry}
+        \vspace{0.1 cm}
+        \begin{onecolentry}
+            \begin{highlights}
+            {% for bullet in Work_experience['Software Engineer Intern, JP Morgan Chase'] %}
+                \item {{ bullet }}
+            {% endfor %}
+            \end{highlights}
+        \end{onecolentry}
+
+    \section{Accomplishments}
+         \begin{onecolentry}
+            \begin{highlights}
+                \item Certified \href{https://cp.certmetrics.com/amazon/en/public/verify/credential/6678c9876a8e42009f7b2521ce118a58}{\underline{AWS Solutions Architect}} - January 2025
+                \item Certified \href{https://cp.certmetrics.com/amazon/en/public/verify/credential/ZPMX5KSCT2REQVKE}{\underline{AWS Cloud Practitioner}} - November 2022
+                \item Represented JPMC-Bangalore as a Pro Deepracer; represented JPMC-BLR in AWS-Deepracer league - May 2024 
+                \item Winner of JPMC’s AWS GameDay - May 2022 
+            \end{highlights}
+        \end{onecolentry}
+
+    \section{Projects}
+        \begin{twocolentry}{\href{https://github.com/kodooraKILLER/f1}{\underline{GitHub Link}}}
+            \textbf{Real Time F1 racing analytics}\end{twocolentry}
+        \vspace{0.10 cm}
+        \begin{onecolentry}
+            \begin{highlights}
+            {% for bullet in Projects['Real Time F1 racing analytics'] %}
+                \item {{ bullet }}
+            {% endfor %}
+            \end{highlights}
+        \end{onecolentry}
+
+        \vspace{0.3 cm}
+
+        \begin{twocolentry}{\href{https://github.com/kodooraKILLER/CWSM}{\underline{GitHub Link}}}
+            \textbf{Chennai Water Supply Manager}\end{twocolentry}
+        \vspace{0.10 cm}
+        \begin{onecolentry}
+            \begin{highlights}
+            {% for bullet in Projects['Chennai Water Supply Manager'] %}
+                \item {{ bullet }}
+            {% endfor %}
+            \end{highlights}
+        \end{onecolentry}
+
+    \section{Education}
+    \noindent \textbf{Bachelor of Technology (B.Tech) in Information Technology} \hfill 2018 - 2022 \\
+    \noindent Vellore Institute of Technology, Vellore \hfill \textbf{CGPA - 9.61}
+    
+\end{document}

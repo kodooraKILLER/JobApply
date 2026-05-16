@@ -1,0 +1,43 @@
+{
+  "Skillset": [
+    "Data Engineering: Scala, PySpark, SQL, ETL/ELT Big Data Solutions, Data Mining, Data Warehousing, Performance Tuning, Analytics and Reporting",
+    "Stream Processing: PyFlink, Kafka, Event-Driven Architectures, Pub-Sub Model, low-latency processing and microbatching",
+    "AWS Services: ETL (Glue, EMR, Athena, Redshift), Data Storage (S3, Aurora, LakeFormation), Orchestration (EventBridge, Step Functions) and Integration (Lambda, SNS, SQS)",
+    "Tools/Technologies/Frameworks: Terraform, Airflow, AWS, SQL and NoSQL, Spark, Hadoop, MapReduce, PyFlink, Git, Jules-Jenkins (CI/CD)",
+    "AI/ML: Deep Learning, Machine Learning, Reinforcement Learning, Large Language Models and Prompt Engineering",
+    "Programming Languages: Python, Bash, Scala, Java, C++",
+    "Core Competencies: Collaboration, Decision making and Leadership; Public Speaking and Presentation; PowerPoint and Video Editing"
+  ],
+  "Work experience": {
+    "Associate Software Engineer, JP Morgan Chase": [
+      "Designed, developed, and maintained scalable ETL/ELT data pipelines to process large volumes of structured and semi-structured data from diverse sources, while maintaining data-integrity, security and quality",
+      "Created end-to-end data-pipelines using AWS Services such as Glue, S3, SQS, Lambda and QuickSight in order to produce data for analytics, thereby reducing manual workload by 80%",
+      "Optimized batch processing jobs by tuning PySpark transformations, SQL queries, and compute resources, reducing job execution time by 35% and decreasing operational costs.",
+      "Spearheaded the integration of LLMs into the development workflow to automate test case creation, boosting code-coverage by 70% and reducing manual testing effort for key data pipelines."
+    ],
+    "Software Engineer, JP Morgan Chase": [
+      "Architected and managed scalable data infrastructure handling 250GB+ daily batch loads, ensuring high availability and optimized processing performance",
+      "Developed data-modelling and consumption patterns for consumers via LakeFormation, SNS-SQS, S3 and Glue",
+      "Developed, scheduled and monitored workflows using Airflow (built on AWS EC2, EFS, Aurora) for orchestrating 300+ Job-Flows that churn over 250 datasets (500GB data) daily",
+      "Cross-collaborated with teams and hosted workshops on Terraform and AWS Services with an overall rating of 4.7/5",
+      "Played a key role in the Public Cloud Migration journey, disbursing knowledge wherever possible"
+    ],
+    "Software Engineer Intern, JP Morgan Chase": [
+      "An initial-adopter of Public Cloud; developed and tested POCs for Cloud-Migration",
+      "Automated HDFS-File purging, resulting in a 60%+ reduction in disk-space utilization"
+    ]
+  },
+  "Projects": {
+    "Real Time F1 racing analytics": [
+      "Architected a real-time data streaming pipeline using PyFlink and Kafka to ingest and process live telemetry data (speed, fuel, throttle, brake) from the F1 25 (PS5) game, creating a foundation for real-time race analytics",
+      "Developed a core data transformation logic using the PyFlink DataStream API to calculate a precise, real-time fuel-burn-rate metric via a sliding window, demonstrating expertise in stateful stream processing and time-based aggregations",
+      "Optimized the pipeline for single-node performance by configuring PyFlink's parallelism to utilize all available CPU cores, implementing minibatch aggregation for better throughput, and leveraging Kafka partitioning to process data from all 20 cars simultaneously",
+      "Delivered an end-to-end solution by publishing the processed metrics to a Kafka topic and visualizing them in a Streamlit dashboard, empowering a virtual race engineer with real-time, data-driven insights to optimize race strategy"
+    ],
+    "Chennai Water Supply Manager": [
+      "An intelligent system that manages water supply by predicting optimal outflow from the reservoirs of Chennai",
+      "Used Deep Learning (Long Short-Term Memory) Neural Networks to build a predictive model based on reservoir-inflow information",
+      "Implemented web crawling, data cleaning and data preprocessing techniques for preparing training data"
+    ]
+  }
+}
