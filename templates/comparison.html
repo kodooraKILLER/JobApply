@@ -3,13 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Resume Tailoring Visualizer</title>
+    <title>Custom-edit Resume</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://unpkg.com/diff2html/bundles/css/diff2html.min.css">
     
     <style>
+        /* Custom Dark Scrollbars for diff2html side panels */
+.d2h-file-side-diff {
+    scrollbar-width: thin;
+    scrollbar-color: #334155 #0f172a;
+}
+
+/* Chrome, Edge, and Safari scrollbar customization */
+.d2h-file-side-diff::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.d2h-file-side-diff::-webkit-scrollbar-track {
+    background: #0f172a;
+    border-radius: 4px;
+}
+
+.d2h-file-side-diff::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+    border: 1px solid #0f172a;
+}
+
+.d2h-file-side-diff::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+}
         body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
         .container-fluid { padding-left: 3%; padding-right: 3%; }
         
