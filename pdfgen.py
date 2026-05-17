@@ -5,7 +5,7 @@ import re
 from jinja2 import Environment, FileSystemLoader
 
 # Hardcoded template name
-TEMPLATE_NAME = os.path.join("resume_json", "base.tex")
+TEMPLATE_NAME = "base.tex"
 
 def tex_escape(text):
     """

@@ -11,31 +11,58 @@
     
     <style>
         /* Custom Dark Scrollbars for diff2html side panels */
-.d2h-file-side-diff {
-    scrollbar-width: thin;
-    scrollbar-color: #334155 #0f172a;
-}
+        .d2h-file-side-diff {
+            scrollbar-width: thin;
+            scrollbar-color: #334155 #0f172a;
+        }
 
-/* Chrome, Edge, and Safari scrollbar customization */
-.d2h-file-side-diff::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
+        /* Chrome, Edge, and Safari scrollbar customization */
+        .d2h-file-side-diff::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
 
-.d2h-file-side-diff::-webkit-scrollbar-track {
-    background: #0f172a;
-    border-radius: 4px;
-}
+        .d2h-file-side-diff::-webkit-scrollbar-track {
+            background: #0f172a;
+            border-radius: 4px;
+        }
 
-.d2h-file-side-diff::-webkit-scrollbar-thumb {
-    background: #334155;
-    border-radius: 4px;
-    border: 1px solid #0f172a;
-}
+        .d2h-file-side-diff::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+            border: 1px solid #0f172a;
+        }
 
-.d2h-file-side-diff::-webkit-scrollbar-thumb:hover {
-    background: #475569;
-}
+        .d2h-file-side-diff::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Dark Scrollbar for Job Description Window */
+        .style-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: #334155 #1e293b;
+        }
+        
+        .style-scroll::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .style-scroll::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+
+        .style-scroll::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+            border: 1px solid #1e293b;
+        }
+
+        .style-scroll::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
         body { background-color: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
         .container-fluid { padding-left: 3%; padding-right: 3%; }
         
@@ -44,6 +71,30 @@
         .accordion-button:not(.collapsed) { background-color: #2d3748; color: #7dd3fc; box-shadow: none; }
         .accordion-button::after { filter: invert(1); }
         .accordion-body { padding: 0; background-color: #0f172a; }
+
+        /* Visually Distinct Job Details & Insights Panel Styling */
+        .job-insight-section {
+            border: 1px solid #312e81 !important; 
+            border-left: 5px solid #6366f1 !important;
+            background-color: #111c44 !important;
+            margin-bottom: 1.25rem;
+            border-radius: 8px !important;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+        .job-insight-section .accordion-button {
+            background-color: #111c44 !important;
+            color: #818cf8 !important;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+        }
+        .job-insight-section .accordion-button:not(.collapsed) {
+            background-color: #1e1b4b !important;
+            color: #c7d2fe !important;
+        }
+        .job-insight-section .accordion-body {
+            background-color: #0b0f26 !important;
+        }
 
         .d2h-wrapper {
             --d2h-bg-color: #0f172a;
@@ -89,6 +140,35 @@
         /* Floating Popup Styling Customization */
         .toast-container { z-index: 1055; }
         .custom-toast { background-color: #1e293b; color: #f8fafc; border: 1px solid #334155; }
+
+        /* Fancy Keyword Box Styling */
+        .keyword-badge {
+            display: inline-block;
+            background-color: #1e1b4b;
+            border: 1px solid #818cf8;
+            color: #a5b4fc;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-right: 0.5rem;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s ease-in-out;
+        }
+        .keyword-badge:hover {
+            background-color: #6366f1;
+            color: #ffffff;
+            transform: translateY(-1px);
+        }
+        .keyword-category-title {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 0.75rem;
+            margin-bottom: 0.4rem;
+        }
     </style>
 </head>
 <body>
@@ -152,15 +232,19 @@
         }
 
         try {
-            const [baseRes, tailoredRes] = await Promise.all([
+            const [baseRes, tailoredRes, jobsRes, summaryRes] = await Promise.all([
                 fetch('/base-resume').then(res => res.json()),
-                fetch(`/resume/${jobId}`).then(res => res.json())
+                fetch(`/resume/${jobId}`).then(res => res.json()),
+                fetch('/jobs').then(res => res.json()),
+                fetch(`/job-summary/${jobId}`).then(res => res.ok ? res.json() : null)
             ]);
 
             baseResume = baseRes.resume;
             tailoredResume = tailoredRes.resume;
 
-            renderUI();
+            const jobDetails = jobsRes.find(j => String(j.id) === String(jobId)) || null;
+
+            renderUI(jobDetails, summaryRes);
         } catch (error) {
             console.error("Comparison Error:", error);
         } finally {
@@ -168,12 +252,74 @@
         }
     }
 
-    function renderUI() {
+    function renderUI(jobDetails, summaryData) {
         const container = document.getElementById('resumeAccordion');
         container.innerHTML = '';
 
+        // SECTION 1: Job Details
+        if (jobDetails) {
+            appendSection(`Job Details: ${jobDetails.company_name} — ${jobDetails.designation}`, 'job-details', 'body-job-details', false, 'job-insight-section');
+            const jobDetailsBody = document.getElementById('body-job-details');
+            jobDetailsBody.className = "accordion-body p-3";
+            jobDetailsBody.innerHTML = `
+                <div class="mb-2"><span style="color: #94a3b8; font-weight: 600;">Company:</span> <span style="color: #f8fafc; font-weight: 500;">${jobDetails.company_name}</span></div>
+                <div class="mb-2"><span style="color: #94a3b8; font-weight: 600;">Role Title:</span> <span style="color: #a5b4fc; font-weight: 500;">${jobDetails.designation}</span></div>
+                ${jobDetails.job_url ? `<div class="mb-3"><span style="color: #94a3b8; font-weight: 600;">Listing URL:</span> <a href="${jobDetails.job_url}" target="_blank" style="color: #818cf8; text-decoration: underline;">${jobDetails.job_url}</a></div>` : ''}
+                <div class="p-3 rounded style-scroll" style="background-color: #0f172a; max-height: 450px; overflow-y: auto; white-space: pre-wrap; font-size: 0.9rem; color: #e2e8f0; border: 1px solid #312e81; line-height: 1.6;">${jobDetails.job_description || 'No description logged.'}</div>
+            `;
+        }
+
+        // SECTION 2: Job Summary & Keywords
+        appendSection('Job Insights & ATS Target Keywords', 'job-summary', 'body-job-summary', true, 'job-insight-section');
+        const jobSummaryBody = document.getElementById('body-job-summary');
+        jobSummaryBody.className = "accordion-body p-3";
+        
+        if (summaryData) {
+            let keywordsHTML = '';
+            
+            if (Array.isArray(summaryData.keywords) && summaryData.keywords.length > 0) {
+                keywordsHTML += `
+                    <div class="keyword-category-title" style="color: #94a3b8;">Target Keywords</div>
+                    <div class="d-flex flex-wrap mb-2">
+                        ${summaryData.keywords.map(word => `<span class="keyword-badge">${word}</span>`).join('')}
+                    </div>
+                `;
+            } 
+            else if (summaryData.keywords && typeof summaryData.keywords === 'object') {
+                Object.keys(summaryData.keywords).forEach(category => {
+                    const words = summaryData.keywords[category];
+                    if (Array.isArray(words) && words.length > 0) {
+                        const cleanCategoryName = category.replace(/_/g, ' ');
+                        keywordsHTML += `
+                            <div class="keyword-category-title" style="color: #94a3b8;">${cleanCategoryName}</div>
+                            <div class="d-flex flex-wrap mb-2">
+                                ${words.map(word => `<span class="keyword-badge">${word}</span>`).join('')}
+                            </div>
+                        `;
+                    }
+                });
+            }
+
+            jobSummaryBody.innerHTML = `
+                <div class="p-3 mb-3 rounded" style="background-color: #1e1b4b; border-left: 4px solid #6366f1;">
+                    <h6 class="fw-bold mb-2" style="font-size: 0.85rem; text-transform: uppercase; color: #818cf8; letter-spacing: 0.05em;">Role Profile Summary</h6>
+                    <p class="mb-0" style="font-size: 0.95rem; line-height: 1.6; color: #e2e8f0;">${summaryData.summary || 'Summary text empty.'}</p>
+                </div>
+                <div>
+                    <h6 class="fw-bold mb-2" style="font-size: 0.85rem; text-transform: uppercase; color: #818cf8; letter-spacing: 0.05em;">Extracted ATS Keywords</h6>
+                    ${keywordsHTML || '<div class="text-muted small">No target keywords structured.</div>'}
+                </div>
+            `;
+        } else {
+            jobSummaryBody.innerHTML = `
+                <div class="p-2 small" style="color: #94a3b8;">
+                    <i class="bi bi-exclamation-circle me-1"></i> Summary profile analysis not generated or still compiling in background context thread.
+                </div>
+            `;
+        }
+
         // 1. Skillset
-        appendSection('Skillset', 'skillset', 'diff-skillset');
+        appendSection('Skillset', 'skillset', 'diff-skillset', false);
         renderDiff(baseResume.Skillset, tailoredResume.Skillset, 'diff-skillset', ['Skillset']);
 
         // 2. Work Experience
@@ -215,10 +361,10 @@
         });
     }
 
-    function appendSection(title, collapseId, bodyId, isShow = true) {
+    function appendSection(title, collapseId, bodyId, isShow = true, extraClass = '') {
         const container = document.getElementById('resumeAccordion');
         const html = `
-            <div class="accordion-item">
+            <div class="accordion-item ${extraClass}">
                 <h2 class="accordion-header">
                     <button class="accordion-button ${isShow ? '' : 'collapsed'}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse${collapseId}">
                         ${title}
@@ -354,7 +500,6 @@
         }
     }
 
-    // New Function to check and copy path with a floating popup toast
     async function copyResumePath() {
         if (!jobId) return;
         
@@ -368,21 +513,16 @@
             const data = await response.json();
 
             if (response.ok && data.status === "success") {
-                // Copy to clipboard
                 await navigator.clipboard.writeText(data.resume_path);
-                
-                // Show Success Toast
                 iconEl.className = "bi bi-clipboard-check-fill text-success";
                 msgEl.innerText = "Path successfully copied to clipboard!";
                 toast.show();
             } else {
-                // Show Not Found Warning Toast
                 iconEl.className = "bi bi-exclamation-triangle-fill text-warning";
                 msgEl.innerText = data.message || "Resume path has not been formed yet.";
                 toast.show();
             }
         } catch (err) {
-            // Show Error Toast
             iconEl.className = "bi bi-x-circle-fill text-danger";
             msgEl.innerText = "Failed to query the resume path.";
             toast.show();
