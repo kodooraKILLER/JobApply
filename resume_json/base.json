@@ -1,26 +1,26 @@
 {
   "Skillset": [
-    "Data Engineering: Scala, PySpark, SQL, ETL/ELT Big Data Solutions, Data Mining, Data Warehousing, Performance Tuning, Analytics and Reporting",
-    "Stream Processing: PyFlink, Kafka, Event-Driven Architectures, Pub-Sub Model, low-latency processing and microbatching",
+    "Data Engineering: Scala, PySpark, SQL, ETL-ELT Big Data Solutions, Data Mining, Data Warehousing, Performance Tuning, Analytics and Reporting",
+    "Stream Processing: PyFlink, Kafka, Event-Driven Architectures, low-latency processing and microbatching",
     "AWS Services: ETL (Glue, EMR, Athena, Redshift), Data Storage (S3, Aurora, LakeFormation), Orchestration (EventBridge, Step Functions) and Integration (Lambda, SNS, SQS)",
-    "Tools/Technologies/Frameworks: Terraform, Airflow, AWS, SQL and NoSQL, Spark, Hadoop, MapReduce, PyFlink, Git, Jules-Jenkins (CI/CD)",
+    "Tools/Technologies/Frameworks: Terraform, Airflow, AWS, SQL and NoSQL, Spark, Git, Jules-Jenkins (CI-CD)",
     "AI/ML: Deep Learning, Machine Learning, Reinforcement Learning, Large Language Models and Prompt Engineering",
     "Programming Languages: Python, Bash, Scala, Java, C++",
     "Core Competencies: Collaboration, Decision making and Leadership; Public Speaking and Presentation; PowerPoint and Video Editing"
   ],
   "Work experience": {
     "Associate Software Engineer, JP Morgan Chase": [
-      "Designed, developed, and maintained scalable ETL/ELT data pipelines to process large volumes of structured and semi-structured data from diverse sources, while maintaining data-integrity, security and quality",
+      "Designed, developed, and maintained scalable ETL-ELT data pipelines to process large volumes of structured and semi-structured data from diverse sources, while maintaining data-integrity, security and quality",
       "Created end-to-end data-pipelines using AWS Services such as Glue, S3, SQS, Lambda and QuickSight in order to produce data for analytics, thereby reducing manual workload by 80%",
-      "Optimized batch processing jobs by tuning PySpark transformations, SQL queries, and compute resources, reducing job execution time by 35% and decreasing operational costs.",
-      "Spearheaded the integration of LLMs into the development workflow to automate test case creation, boosting code-coverage by 70% and reducing manual testing effort for key data pipelines."
+      "Optimized batch processing jobs by tuning PySpark transformations, SQL queries, and compute resources, reducing job execution time by 35%",
+      "Led a cross-functional FinOps initiative that reduced cloud spend by 31% in 6 weeks, driving a new data retention policy to eliminate redundant S3 files while optimizing EMR cluster schedules",
+      "Led the integration of LLMs into the development workflow to automate test case creation, boosting code-coverage by 70% and reducing manual testing effort for key data pipelines."
     ],
     "Software Engineer, JP Morgan Chase": [
       "Architected and managed scalable data infrastructure handling 250GB+ daily batch loads, ensuring high availability and optimized processing performance",
       "Developed data-modelling and consumption patterns for consumers via LakeFormation, SNS-SQS, S3 and Glue",
-      "Developed, scheduled and monitored workflows using Airflow (built on AWS EC2, EFS, Aurora) for orchestrating 300+ Job-Flows that churn over 250 datasets (500GB data) daily",
-      "Cross-collaborated with teams and hosted workshops on Terraform and AWS Services with an overall rating of 4.7/5",
-      "Played a key role in the Public Cloud Migration journey, disbursing knowledge wherever possible"
+      "Developed, scheduled and monitored workflows using Airflow (built on AWS EC2, EFS, Aurora) for orchestrating 200+ Job-Flows that churn over 100 datasets daily",
+      "Cross-collaborated with teams and hosted workshops on Terraform, AWS Services with an overall rating of 9.4"
     ],
     "Software Engineer Intern, JP Morgan Chase": [
       "An initial-adopter of Public Cloud; developed and tested POCs for Cloud-Migration",

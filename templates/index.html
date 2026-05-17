@@ -289,6 +289,14 @@
             color: #38bdf8;
             background-color: rgba(56, 189, 248, 0.1);
         }
+
+        /* Days ago decoration design text badge style adjustment */
+        .days-ago-text {
+            font-size: 0.85rem;
+            color: #64748b;
+            font-weight: 500;
+            margin-left: 0.25rem;
+        }
     </style>
 </head>
 <body>
@@ -396,6 +404,25 @@
     const stages = ["viewed", "waiting for referral", "applied", "got interview call", "being interviewed"];
     let jobResumeCheckIntervals = {};
 
+    // Internal calculation evaluation logic matching native YYYY-MM-DD input layouts
+    function getDaysAgoText(dateString) {
+        if (!dateString) return '';
+        
+        const jobDate = new Date(dateString + 'T00:00:00');
+        const today = new Date();
+        
+        jobDate.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        
+        const diffTime = today - jobDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays < 0) return '(Future)';
+        if (diffDays === 0) return '(Today)';
+        if (diffDays === 1) return '(1 day ago)';
+        return `(${diffDays} days ago)`;
+    }
+
     async function loadJobs() {
         const response = await fetch('/jobs');
         const jobs = await response.json();
@@ -417,6 +444,8 @@
                 startResomeCheckInterval(job.id);
             }
 
+            const daysAgoText = getDaysAgoText(job.date_added);
+
             // Placed the copy clipboard icon directly near the star emoji asset inside the item wrapper
             container.innerHTML += `
                 <div class="list-group-item" onclick="showDetails('${jobData}')">
@@ -429,6 +458,7 @@
                         </div>
                         <div class="job-actions">
                             ${job.job_url ? `<a href="${job.job_url}" target="_blank" class="text-decoration-none" title="Go to Job URL" onclick="event.stopPropagation();">🔗</a>` : ''}
+                            ${daysAgoText ? `<span class="days-ago-text">${daysAgoText}</span>` : ''}
                             ${starHtml}
                             <i class="bi bi-clipboard copy-path-btn" onclick="event.stopPropagation(); copyResumePath(${job.id})" title="Copy PDF Resume Path"></i>
                         </div>

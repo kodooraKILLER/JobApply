@@ -29,6 +29,7 @@ def get_db_connection():
 
 def init_db():
     with get_db_connection() as conn:
+        # Create core tracking table if it doesn't exist yet
         conn.execute('''
             CREATE TABLE IF NOT EXISTS jobs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,6 +44,15 @@ def init_db():
             )
         ''')
         conn.commit()
+
+        # Schema Evolution: Automatically append flexible "params" column to existing databases
+        cursor = conn.execute("PRAGMA table_info(jobs)")
+        columns = [row['name'] for row in cursor.fetchall()]
+        
+        if 'params' not in columns:
+            print("Database Migration: Appending flexible 'params' column to the jobs table.")
+            conn.execute("ALTER TABLE jobs ADD COLUMN params TEXT DEFAULT '{}'")
+            conn.commit()
 
 def load_base_resume():
     """Load the base resume from resume_json/base.json"""
@@ -353,17 +363,45 @@ def get_jobs():
     conn = get_db_connection()
     jobs = conn.execute('SELECT * FROM jobs').fetchall()
     conn.close()
-    return jsonify([dict(job) for job in jobs])
+    
+    processed_jobs = []
+    for job in jobs:
+        # Convert sqlite3.Row object instance to a native mutable dictionary
+        job_dict = dict(job)
+        
+        # Safe string-to-JSON serialization decoding block
+        try:
+            unpacked_params = json.loads(job_dict.get('params') or '{}')
+        except Exception:
+            unpacked_params = {}
+            
+        # Extract the date field, gracefully falling back to None if older rows lack it
+        job_dict['date_added'] = unpacked_params.get('date_added', None)
+        
+        processed_jobs.append(job_dict)
+        
+    return jsonify(processed_jobs)
 
 @app.route('/add_job', methods=['POST'])
 def add_job():
     data = request.get_json()
-    conn = get_db_connection()
     
+    # Generate stringified YYYY-MM-DD format of today's date
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    
+    # Initialize flexible json storage map parameter dictionary
+    flexible_params = {
+        "date_added": today_str
+    }
+    
+    # Convert payload mapping directly into a text string representation
+    params_json_text = json.dumps(flexible_params)
+
+    conn = get_db_connection()
     cursor = conn.execute('''
-        INSERT INTO jobs (company_name, designation, job_description, job_url, resume_generated)
-        VALUES (?, ?, ?, ?, 0)
-    ''', (data['company_name'], data['designation'], data['job_description'], data['job_url']))
+        INSERT INTO jobs (company_name, designation, job_description, job_url, resume_generated, params)
+        VALUES (?, ?, ?, ?, 0, ?)
+    ''', (data['company_name'], data['designation'], data['job_description'], data['job_url'], params_json_text))
     
     job_id = cursor.lastrowid
     conn.commit()
