@@ -9,11 +9,17 @@ TEMPLATE_NAME = "base.tex"
 
 def tex_escape(text):
     """
-    Finds and escapes special LaTeX characters in a plain text string.
+    Finds and escapes special LaTeX characters in a plain text string
+    and converts **bold** markdown to LaTeX \textbf{}.
     """
     if not isinstance(text, str):
         return text
     
+    # 1. Handle bold markdown first: **text** -> \textbf{text}
+    # We use a regex that looks for **content**
+    
+    
+    # 2. Escape standard LaTeX special characters
     conv = {
         '\\': r'\textbackslash{}',
         '&': r'\&',
@@ -30,12 +36,13 @@ def tex_escape(text):
     pattern = '|'.join(re.escape(str(key)) for key in sorted(conv.keys(), key=lambda item: -len(item)))
     regex = re.compile(pattern)
     
-    return regex.sub(lambda match: conv[match.group()], text)
+    escaped = regex.sub(lambda match: conv[match.group()], text)
+    text = re.sub(r'\*\*(.*?)\*\*', r'\\textbf{\1}', escaped)
+    return text
 
 def escape_data_recursively(data):
     """
-    Recursively travels through the JSON structure (lists and dicts)
-    and escapes all string values, while keeping dictionary keys intact.
+    Recursively travels through the JSON structure and escapes/bolds strings.
     """
     if isinstance(data, dict):
         return {key: escape_data_recursively(value) for key, value in data.items()}

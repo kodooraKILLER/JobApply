@@ -83,7 +83,7 @@ def tailor_resume_with_gemini(base_resume, job_description):
         )
 
         response = client.models.generate_content(
-            model='gemini-3-flash-preview',
+            model='gemini-3.5-flash',
             contents=user_message,
             config=config
         )
@@ -98,6 +98,43 @@ def tailor_resume_with_gemini(base_resume, job_description):
         return tailored_json
     except Exception as e:
         print(f"Error tailoring resume: {e}")
+        return None
+
+def autobold_resume_with_gemini(tailored_resume, job_description):
+    """Use Gemini 2.5 Flash to automatically apply markdown bolding to the resume"""
+    prompt_path = os.path.join(os.path.dirname(__file__), 'hr_autobolder.md')
+    try:
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            system_prompt = f.read()
+    except Exception as e:
+        print(f"Error loading hr_autobolder prompt file: {e}")
+        return None
+
+    user_message = f"Base Resume:\n{json.dumps(tailored_resume)}\n\nJob Description:\n{job_description}"
+
+    try:
+        client = genai.Client(api_key=GEMINI_API_KEY)
+
+        config = types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            response_mime_type="application/json"
+        )
+
+        response = client.models.generate_content(
+            model='gemini-3.1-flash-lite',
+            contents=user_message,
+            config=config
+        )
+        content = response.text
+
+        # Strip markdown code blocks if present
+        if content.startswith("```"):
+            content = content.strip("`").replace("json\n", "", 1)
+
+        autobolded_json = json.loads(content)
+        return autobolded_json
+    except Exception as e:
+        print(f"Error autobolding resume: {e}")
         return None
 
 def summarise_job(job_description):
@@ -187,12 +224,11 @@ def update_job_status(job_id):
     data = request.get_json() or {}
     new_status = data.get('status')
     
-    valid_stages = ["viewed", "waiting for referral", "applied", "got interview call", "being interviewed"]
     
     if not new_status:
         return jsonify({
             "status": "error",
-            "message": f"Invalid status stage. Must be one of: {', '.join(valid_stages)}"
+            "message": f"Invalid status stage"
         }), 400
 
     try:
@@ -318,23 +354,206 @@ def update_resume(job_id):
         print(f"Error updating resume: {e}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/fetch_resume_path/<int:job_id>', methods=['GET'])
-def fetch_resume_path(job_id):
-    """Checks if a tailored resume exists in resumes/{job_id}/senthil_resume.pdf."""
-    relative_path = os.path.join(RESUMES_DIR, str(job_id), "senthil_resume.pdf")
-    absolute_path = os.path.abspath(relative_path)
-    
-    if os.path.exists(absolute_path):
+@app.route('/autobold/<int:job_id>', methods=['POST'])
+def autobold_endpoint(job_id):
+    """
+    Saves recent edits made to the baseline tailored resume,
+    then executes the HR Autobolder subprocess via Gemini 2.5 Flash.
+    """
+    try:
+        data = request.get_json() or {}
+        current_resume = data.get('resume')
+
+        if not current_resume:
+            return jsonify({"error": "No resume data provided for autobolding"}), 400
+
+        # 1. Sync current manual baseline tailored edits first
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        tailored_filename = f"job_{job_id}_{timestamp}_updated.json"
+        tailored_path = os.path.join(TAILORED_RESUMES_DIR, tailored_filename)
+
+        with open(tailored_path, 'w') as f:
+            json.dump(current_resume, f, indent=2)
+        
+        job_folder = os.path.join(RESUMES_DIR, str(job_id))
+        os.makedirs(job_folder, exist_ok=True)
+        target_pdf_path = os.path.join(job_folder, "senthil_resume.pdf")
+        pdfgen.generate_pdf(tailored_path, target_pdf_path)
+
+        # 2. Extract Job Details
+        conn = get_db_connection()
+        job_row = conn.execute('SELECT job_description, params FROM jobs WHERE id = ?', (job_id,)).fetchone()
+        
+        if not job_row:
+            conn.close()
+            return jsonify({"error": "Job tracking element missing."}), 404
+
+        job_description = job_row['job_description'] or ""
+        
+        # 3. Fire processing core running on Gemini 2.5 Flash
+        autobolded_json = autobold_resume_with_gemini(current_resume, job_description)
+        if not autobolded_json:
+            conn.close()
+            return jsonify({"error": "Failed to safely bold the configuration map."}), 500
+
+        # 4. Save autobolded content maps
+        autobold_filename = f"job_{job_id}_{timestamp}_autobolded.json"
+        autobold_json_path = os.path.join(TAILORED_RESUMES_DIR, autobold_filename)
+        with open(autobold_json_path, 'w') as f:
+            json.dump(autobolded_json, f, indent=2)
+
+        autobold_pdf_path = os.path.join(job_folder, "senthil_resume_autobolded.pdf")
+        pdfgen.generate_pdf(autobold_json_path, autobold_pdf_path)
+
+        # 5. Extract/Pack parameter items for tracking state backward-compatibility
+        try:
+            params = json.loads(job_row['params'] or '{}')
+        except Exception:
+            params = {}
+        
+        params['autobold_json_path'] = autobold_json_path
+        params['autobold_pdf_path'] = autobold_pdf_path
+        params['has_autobolded'] = True
+        params_json_text = json.dumps(params)
+
+        conn.execute('''
+            UPDATE jobs 
+            SET resume_path = ?, resume_generated = 1, params = ? 
+            WHERE id = ?
+        ''', (tailored_path, job_id, params_json_text))
+        conn.commit()
+        conn.close()
+
         return jsonify({
             "status": "success",
-            "job_id": job_id,
-            "resume_path": absolute_path
+            "message": "Resume synced & HR Autobolded successfully!",
+            "autobolded_resume": autobolded_json
         }), 200
-    else:
+
+    except Exception as e:
+        print(f"Error executing Autobolder engine: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/autobold-resume/<int:job_id>', methods=['GET'])
+def get_autobold_resume(job_id):
+    """Fetch the compiled autobolded resume data if it has been executed"""
+    conn = get_db_connection()
+    job_row = conn.execute('SELECT params FROM jobs WHERE id = ?', (job_id,)).fetchone()
+    conn.close()
+
+    if not job_row:
+        return jsonify({"error": "Job record missing"}), 404
+
+    try:
+        params = json.loads(job_row['params'] or '{}')
+    except Exception:
+        params = {}
+
+    autobold_json_path = params.get('autobold_json_path')
+    if not autobold_json_path or not os.path.exists(autobold_json_path):
+        return jsonify({"error": "Autobolded configuration has not been generated yet."}), 404
+
+    try:
+        with open(autobold_json_path, 'r') as f:
+            autobold_data = json.load(f)
+        return jsonify({"resume": autobold_data, "has_autobolded": True}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/update-autobold-resume/<int:job_id>', methods=['POST'])
+def update_autobold_resume(job_id):
+    """Update manually shifted or configured weights inside the compiled autobold block layout"""
+    try:
+        data = request.get_json() or {}
+        updated_autobold_resume = data.get('resume')
+
+        if not updated_autobold_resume:
+            return jsonify({"error": "No configuration parameters provided"}), 400
+
+        conn = get_db_connection()
+        job_row = conn.execute('SELECT params FROM jobs WHERE id = ?', (job_id,)).fetchone()
+
+        if not job_row:
+            conn.close()
+            return jsonify({"error": "Job tracking row missing"}), 404
+
+        try:
+            params = json.loads(job_row['params'] or '{}')
+        except Exception:
+            params = {}
+
+        autobold_json_path = params.get('autobold_json_path')
+        
+        if not autobold_json_path:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            autobold_json_path = os.path.join(TAILORED_RESUMES_DIR, f"job_{job_id}_{timestamp}_autobolded.json")
+            params['autobold_json_path'] = autobold_json_path
+
+        with open(autobold_json_path, 'w') as f:
+            json.dump(updated_autobold_resume, f, indent=2)
+
+        job_folder = os.path.join(RESUMES_DIR, str(job_id))
+        os.makedirs(job_folder, exist_ok=True)
+        autobold_pdf_path = os.path.join(job_folder, "senthil_resume_autobolded.pdf")
+        pdfgen.generate_pdf(autobold_json_path, autobold_pdf_path)
+
+        params['autobold_pdf_path'] = autobold_pdf_path
+        params['has_autobolded'] = True
+        
+        conn.execute('UPDATE jobs SET params = ? WHERE id = ?', (json.dumps(params), job_id))
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            "status": "success",
+            "message": "Autobold manual tweaks compiled to storage file systems.",
+            "new_path": autobold_json_path
+        }), 200
+
+    except Exception as e:
+        print(f"Error writing update to autobold block: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/fetch_resume_path/<int:job_id>', methods=['GET'])
+def fetch_resume_path(job_id):
+    """Checks if a tailored resume or an HR autobolded resume exists and returns its absolute path."""
+    resume_type = request.args.get('type', 'tailored')
+    
+    if resume_type == 'autobold':
+        conn = get_db_connection()
+        job_row = conn.execute('SELECT params FROM jobs WHERE id = ?', (job_id,)).fetchone()
+        conn.close()
+        if job_row:
+            try:
+                params = json.loads(job_row['params'] or '{}')
+                autobold_pdf_path = params.get('autobold_pdf_path')
+                if autobold_pdf_path and os.path.exists(autobold_pdf_path):
+                    return jsonify({
+                        "status": "success",
+                        "job_id": job_id,
+                        "resume_path": os.path.abspath(autobold_pdf_path)
+                    }), 200
+            except Exception:
+                pass
         return jsonify({
             "status": "error",
-            "message": f"Resume for Job ID {job_id} does not exist at the expected location."
+            "message": f"Autobolded resume PDF for Job ID {job_id} does not exist yet."
         }), 404
+    else:
+        relative_path = os.path.join(RESUMES_DIR, str(job_id), "senthil_resume.pdf")
+        absolute_path = os.path.abspath(relative_path)
+        
+        if os.path.exists(absolute_path):
+            return jsonify({
+                "status": "success",
+                "job_id": job_id,
+                "resume_path": absolute_path
+                    }), 200
+        else:
+            return jsonify({
+                "status": "error",
+                "message": f"Resume for Job ID {job_id} does not exist at the expected location."
+            }), 404
 
 @app.route('/job-summary/<int:job_id>', methods=['GET'])
 def get_job_summary(job_id):

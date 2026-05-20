@@ -20,8 +20,7 @@ You are an expert Technical Resume Strategist. Your goal is to optimize a candid
 ### OUTPUT
 Return ONLY the updated valid JSON object. No preamble. No summary of changes. The updated JSON must follow this exact JSON structure, with modifications and additions only allowed in the underlying points-section of the JSON:
 {
-  "Skillset": ["point1","point2",....]
-  ],
+  "Skillset": ["point1","point2",....],
   "Work experience": {
     "Associate Software Engineer, JP Morgan Chase": ["point1","point2",....],
     "Software Engineer, JP Morgan Chase": ["point1","point2",....],

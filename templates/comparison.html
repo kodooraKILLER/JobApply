@@ -169,6 +169,23 @@
             margin-top: 0.75rem;
             margin-bottom: 0.4rem;
         }
+
+        /* Perspective Toggle Design Styling */
+        .perspective-toggle-container {
+            background: #1e293b;
+            padding: 6px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            display: inline-flex;
+        }
+        .perspective-toggle-container .btn {
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 0.5rem 1.25rem;
+            border-radius: 6px;
+            letter-spacing: 0.03em;
+            transition: all 0.2s ease;
+        }
     </style>
 </head>
 <body>
@@ -191,11 +208,25 @@
             <button id="copy-btn" class="btn btn-sm btn-outline-secondary fw-bold" onclick="copyResumePath()">
                 <i class="bi bi-clipboard"></i> COPY PATH
             </button>
+            <button id="autobold-btn" class="btn btn-sm btn-outline-warning fw-bold" onclick="triggerAutobold()">
+                <i class="bi bi-magic"></i> AUTO-BOLD RESUME
+            </button>
             <button id="save-btn" class="btn btn-sm btn-outline-info fw-bold" onclick="confirmAndSync()">
                 <i class="bi bi-cloud-arrow-up"></i> CONFIRM EDITS & SYNC
             </button>
         </div> 
     </header>
+
+    <div class="d-flex justify-content-center mb-4">
+        <div class="perspective-toggle-container shadow-sm">
+            <button type="button" id="view-base-btn" class="btn btn-primary me-1" onclick="setViewMode('base')">
+                <i class="bi bi-arrow-left-right me-1"></i> BASE VS CURRENT DRAFT
+            </button>
+            <button type="button" id="view-committed-btn" class="btn btn-outline-light" onclick="setViewMode('committed')">
+                <i class="bi bi-file-earmark-diff me-1"></i> COMMITTED TAILORED VS CURRENT/AUTOBOLD
+            </button>
+        </div>
+    </div>
 
     <div class="accordion" id="resumeAccordion"></div>
 </div>
@@ -218,9 +249,15 @@
 
 <script>
     let baseResume = {};
-    let tailoredResume = {};
+    let tailoredResume = {}; // Current work-in-progress draft
+    let committedResume = {}; // Frozen state loaded from the DB
     let jobId = null;
     let debounceTimer;
+    let viewMode = 'base'; // 'base' or 'committed'
+    let isAutoboldedState = false; // Internal tracking flag for session state
+
+    let globalJobDetails = null;
+    let globalSummaryData = null;
 
     async function loadAndCompare() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -240,11 +277,22 @@
             ]);
 
             baseResume = baseRes.resume;
-            tailoredResume = tailoredRes.resume;
+            tailoredResume = JSON.parse(JSON.stringify(tailoredRes.resume));
+            committedResume = JSON.parse(JSON.stringify(tailoredRes.resume));
+            isAutoboldedState = tailoredRes.has_autobolded || false;
 
-            const jobDetails = jobsRes.find(j => String(j.id) === String(jobId)) || null;
+            globalJobDetails = jobsRes.find(j => String(j.id) === String(jobId)) || null;
+            globalSummaryData = summaryRes;
 
-            renderUI(jobDetails, summaryRes);
+            renderUI();
+
+            if (isAutoboldedState) {
+                const btn = document.getElementById('autobold-btn');
+                if (btn) {
+                    btn.className = "btn btn-sm btn-success fw-bold";
+                    btn.innerHTML = `<i class="bi bi-magic"></i> RE-RUN AUTO-BOLD`;
+                }
+            }
         } catch (error) {
             console.error("Comparison Error:", error);
         } finally {
@@ -252,20 +300,35 @@
         }
     }
 
-    function renderUI(jobDetails, summaryData) {
+    function setViewMode(mode) {
+        viewMode = mode;
+        const baseBtn = document.getElementById('view-base-btn');
+        const committedBtn = document.getElementById('view-committed-btn');
+
+        if (mode === 'base') {
+            baseBtn.className = "btn btn-primary me-1";
+            committedBtn.className = "btn btn-outline-light";
+        } else {
+            baseBtn.className = "btn btn-outline-light me-1";
+            committedBtn.className = "btn btn-primary";
+        }
+        renderUI();
+    }
+
+    function renderUI() {
         const container = document.getElementById('resumeAccordion');
         container.innerHTML = '';
 
         // SECTION 1: Job Details
-        if (jobDetails) {
-            appendSection(`Job Details: ${jobDetails.company_name} — ${jobDetails.designation}`, 'job-details', 'body-job-details', false, 'job-insight-section');
+        if (globalJobDetails) {
+            appendSection(`Job Details: ${globalJobDetails.company_name} — ${globalJobDetails.designation}`, 'job-details', 'body-job-details', false, 'job-insight-section');
             const jobDetailsBody = document.getElementById('body-job-details');
             jobDetailsBody.className = "accordion-body p-3";
             jobDetailsBody.innerHTML = `
-                <div class="mb-2"><span style="color: #94a3b8; font-weight: 600;">Company:</span> <span style="color: #f8fafc; font-weight: 500;">${jobDetails.company_name}</span></div>
-                <div class="mb-2"><span style="color: #94a3b8; font-weight: 600;">Role Title:</span> <span style="color: #a5b4fc; font-weight: 500;">${jobDetails.designation}</span></div>
-                ${jobDetails.job_url ? `<div class="mb-3"><span style="color: #94a3b8; font-weight: 600;">Listing URL:</span> <a href="${jobDetails.job_url}" target="_blank" style="color: #818cf8; text-decoration: underline;">${jobDetails.job_url}</a></div>` : ''}
-                <div class="p-3 rounded style-scroll" style="background-color: #0f172a; max-height: 450px; overflow-y: auto; white-space: pre-wrap; font-size: 0.9rem; color: #e2e8f0; border: 1px solid #312e81; line-height: 1.6;">${jobDetails.job_description || 'No description logged.'}</div>
+                <div class="mb-2"><span style="color: #94a3b8; font-weight: 600;">Company:</span> <span style="color: #f8fafc; font-weight: 500;">${globalJobDetails.company_name}</span></div>
+                <div class="mb-2"><span style="color: #94a3b8; font-weight: 600;">Role Title:</span> <span style="color: #a5b4fc; font-weight: 500;">${globalJobDetails.designation}</span></div>
+                ${globalJobDetails.job_url ? `<div class="mb-3"><span style="color: #94a3b8; font-weight: 600;">Listing URL:</span> <a href="${globalJobDetails.job_url}" target="_blank" style="color: #818cf8; text-decoration: underline;">${globalJobDetails.job_url}</a></div>` : ''}
+                <div class="p-3 rounded style-scroll" style="background-color: #0f172a; max-height: 450px; overflow-y: auto; white-space: pre-wrap; font-size: 0.9rem; color: #e2e8f0; border: 1px solid #312e81; line-height: 1.6;">${globalJobDetails.job_description || 'No description logged.'}</div>
             `;
         }
 
@@ -274,20 +337,20 @@
         const jobSummaryBody = document.getElementById('body-job-summary');
         jobSummaryBody.className = "accordion-body p-3";
         
-        if (summaryData) {
+        if (globalSummaryData) {
             let keywordsHTML = '';
             
-            if (Array.isArray(summaryData.keywords) && summaryData.keywords.length > 0) {
+            if (Array.isArray(globalSummaryData.keywords) && globalSummaryData.keywords.length > 0) {
                 keywordsHTML += `
                     <div class="keyword-category-title" style="color: #94a3b8;">Target Keywords</div>
                     <div class="d-flex flex-wrap mb-2">
-                        ${summaryData.keywords.map(word => `<span class="keyword-badge">${word}</span>`).join('')}
+                        ${globalSummaryData.keywords.map(word => `<span class="keyword-badge">${word}</span>`).join('')}
                     </div>
                 `;
             } 
-            else if (summaryData.keywords && typeof summaryData.keywords === 'object') {
-                Object.keys(summaryData.keywords).forEach(category => {
-                    const words = summaryData.keywords[category];
+            else if (globalSummaryData.keywords && typeof globalSummaryData.keywords === 'object') {
+                Object.keys(globalSummaryData.keywords).forEach(category => {
+                    const words = globalSummaryData.keywords[category];
                     if (Array.isArray(words) && words.length > 0) {
                         const cleanCategoryName = category.replace(/_/g, ' ');
                         keywordsHTML += `
@@ -303,7 +366,7 @@
             jobSummaryBody.innerHTML = `
                 <div class="p-3 mb-3 rounded" style="background-color: #1e1b4b; border-left: 4px solid #6366f1;">
                     <h6 class="fw-bold mb-2" style="font-size: 0.85rem; text-transform: uppercase; color: #818cf8; letter-spacing: 0.05em;">Role Profile Summary</h6>
-                    <p class="mb-0" style="font-size: 0.95rem; line-height: 1.6; color: #e2e8f0;">${summaryData.summary || 'Summary text empty.'}</p>
+                    <p class="mb-0" style="font-size: 0.95rem; line-height: 1.6; color: #e2e8f0;">${globalSummaryData.summary || 'Summary text empty.'}</p>
                 </div>
                 <div>
                     <h6 class="fw-bold mb-2" style="font-size: 0.85rem; text-transform: uppercase; color: #818cf8; letter-spacing: 0.05em;">Extracted ATS Keywords</h6>
@@ -318,14 +381,17 @@
             `;
         }
 
+        // Dynamically shift the left-hand visual anchor based on view toggle
+        const leftAnchorResume = (viewMode === 'base') ? baseResume : committedResume;
+
         // 1. Skillset
         appendSection('Skillset', 'skillset', 'diff-skillset', false);
-        renderDiff(baseResume.Skillset, tailoredResume.Skillset, 'diff-skillset', ['Skillset']);
+        renderDiff(leftAnchorResume.Skillset, tailoredResume.Skillset, 'diff-skillset', ['Skillset']);
 
         // 2. Work Experience
         appendSection('Work Experience', 'work', 'work-container', false);
         const workParent = document.getElementById('work-container');
-        Object.keys(baseResume["Work experience"]).forEach(role => {
+        Object.keys(leftAnchorResume["Work experience"]).forEach(role => {
             const id = `work-${role.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`;
             
             const header = document.createElement('div');
@@ -338,13 +404,13 @@
             workParent.appendChild(header);
             workParent.appendChild(diffDiv);
             
-            renderDiff(baseResume["Work experience"][role], tailoredResume["Work experience"][role], id, ['Work experience', role]);
+            renderDiff(leftAnchorResume["Work experience"][role], tailoredResume["Work experience"][role], id, ['Work experience', role]);
         });
 
         // 3. Projects
         appendSection('Projects', 'projects', 'projects-container', false);
         const projectParent = document.getElementById('projects-container');
-        Object.keys(baseResume.Projects).forEach(project => {
+        Object.keys(leftAnchorResume.Projects).forEach(project => {
             const id = `project-${project.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`;
             
             const header = document.createElement('div');
@@ -357,7 +423,7 @@
             projectParent.appendChild(header);
             projectParent.appendChild(diffDiv);
             
-            renderDiff(baseResume.Projects[project], tailoredResume.Projects[project], id, ['Projects', project]);
+            renderDiff(leftAnchorResume.Projects[project], tailoredResume.Projects[project], id, ['Projects', project]);
         });
     }
 
@@ -383,7 +449,7 @@
         
         const maxLines = Math.max(baseString.split('\n').length, tailoredString.split('\n').length);
 
-        const patch = Diff.createTwoFilesPatch('Base', 'Tailored', 
+        const patch = Diff.createTwoFilesPatch('Source', 'Current Draft', 
             baseString, 
             tailoredString,
             '', '',
@@ -461,11 +527,62 @@
 
             showStatus('Recomputed', 'saved');
             
-            const baseData = path.length === 1 ? baseResume[path[0]] : baseResume[path[0]][path[1]];
+            const leftAnchorResume = (viewMode === 'base') ? baseResume : committedResume;
+            const baseData = path.length === 1 ? leftAnchorResume[path[0]] : leftAnchorResume[path[0]][path[1]];
             renderDiff(baseData, updated, elementId, path);
             
         } catch (e) {
             showStatus('Invalid JSON', 'saving');
+        }
+    }
+
+    async function triggerAutobold() {
+        const btn = document.getElementById('autobold-btn');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> AUTOBOLDING...`;
+
+        try {
+            const response = await fetch(`/autobold/${jobId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resume: tailoredResume })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status === "success") {
+                tailoredResume = data.autobolded_resume;
+                isAutoboldedState = true;
+
+                const [jobsRes, summaryRes] = await Promise.all([
+                    fetch('/jobs').then(res => res.json()),
+                    fetch(`/job-summary/${jobId}`).then(res => res.ok ? res.json() : null)
+                ]);
+                globalJobDetails = jobsRes.find(j => String(j.id) === String(jobId)) || null;
+                globalSummaryData = summaryRes;
+                
+                // Automatically redirect context perspectives to focus precisely on the AI Bold updates
+                setViewMode('committed');
+
+                btn.className = "btn btn-sm btn-success fw-bold";
+                btn.innerHTML = `<i class="bi bi-magic"></i> RE-RUN AUTO-BOLD`;
+                btn.disabled = false;
+                
+                const msgEl = document.getElementById('toast-message');
+                const iconEl = document.getElementById('toast-icon');
+                const toastNode = document.getElementById('popupToast');
+                const toast = new bootstrap.Toast(toastNode, { delay: 3500 });
+                iconEl.className = "bi bi-magic text-success";
+                msgEl.innerText = "Resume successfully autobolded! Reviewing committed vs current.";
+                toast.show();
+            } else {
+                throw new Error(data.error || "Failed to autobold");
+            }
+        } catch (err) {
+            alert("Error autobolding resume: " + err.message);
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
         }
     }
 
@@ -479,10 +596,16 @@
             const response = await fetch(`/update-resume/${jobId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ resume: tailoredResume })
+                body: JSON.stringify({ 
+                    resume: tailoredResume,
+                    has_autobolded: isAutoboldedState
+                })
             });
 
             if (response.ok) {
+                // Flash freeze the current layout state as the new saved base-mark point
+                committedResume = JSON.parse(JSON.stringify(tailoredResume));
+
                 btn.className = "btn btn-sm btn-success fw-bold";
                 btn.innerHTML = `<i class="bi bi-check-circle-fill"></i> SYNCED SUCCESSFULLY`;
                 setTimeout(() => {
