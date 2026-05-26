@@ -39,6 +39,49 @@
             cursor: pointer;
         }
 
+        /* Dynamic Status Gradient Colors */
+        .list-group-item.status-viewed {
+            background-color: #162238; /* Muted Dark Navy Blue */
+            border-color: #1e3a8a;
+        }
+        .list-group-item.status-viewed:hover {
+            background-color: #1d2d4a;
+        }
+
+        .list-group-item.status-waiting {
+            background-color: #1e295d; /* Medium Steel Blue/Indigo mix */
+            border-color: #2563eb;
+        }
+        .list-group-item.status-waiting:hover {
+            background-color: #273575;
+        }
+
+        .list-group-item.status-applied {
+            background-color: #2e2252; /* Deep Violet/Lavender-Tinted Night Blue */
+            border-color: #6d28d9;
+        }
+        .list-group-item.status-applied:hover {
+            background-color: #3b2c68;
+        }
+
+        .list-group-item.status-interview {
+            background-color: #143134; /* Dark Teal Accent for Interviews */
+            border-color: #0d9488;
+        }
+        .list-group-item.status-interview:hover {
+            background-color: #1b4145;
+        }
+
+        .list-group-item.status-rejected {
+            background-color: #1e1b1b; /* Neutral dark for rejections */
+            border-color: #451a1a;
+            opacity: 0.75;
+        }
+        .list-group-item.status-rejected:hover {
+            background-color: #262222;
+            opacity: 1;
+        }
+
         .list-group-item::before {
             content: '';
             position: absolute;
@@ -46,16 +89,15 @@
             left: 0;
             right: 0;
             height: 3px;
-            background: linear-gradient(90deg, #38bdf8, #3b82f6);
+            background: linear-gradient(90deg, #38bdf8, #8b5cf6);
             opacity: 0;
             transition: opacity 0.3s ease;
         }
 
         .list-group-item:hover { 
-            background-color: #2d3748; 
             border-color: #38bdf8;
             transform: translateY(-4px);
-            box-shadow: 0 8px 24px rgba(56, 189, 248, 0.2);
+            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.15);
         }
 
         .list-group-item:hover::before {
@@ -127,7 +169,7 @@
         
         .resume-star.generated {
             animation: glow-blue 1.5s ease-in-out infinite;
-            color: #38bdf8; /* Modified to vibrant blue color */
+            color: #38bdf8; 
         }
 
         /* Copy Button Icon Placement Styling */
@@ -454,6 +496,27 @@
     ];
     let jobResumeCheckIntervals = {};
 
+    /* Maps stage string names to explicit visual CSS background classes */
+    function getStatusClass(status) {
+        switch (status) {
+            case 'viewed':
+                return 'status-viewed';
+            case 'waiting for referral':
+                return 'status-waiting';
+            case 'applied with referral':
+            case 'applied without referral':
+                return 'status-applied';
+            case 'got interview call':
+            case 'being interviewed':
+                return 'status-interview';
+            case 'rejected without applying':
+            case 'rejected after applying':
+                return 'status-rejected';
+            default:
+                return '';
+        }
+    }
+
     async function loadJobs() {
         const response = await fetch('/jobs');
         const jobs = await response.json();
@@ -473,6 +536,7 @@
             ).join('');
 
             const jobData = encodeURIComponent(JSON.stringify(job));
+            const colorModifierClass = getStatusClass(job.status);
             
             let starHtml = '';
             if (job.resume_generated) {
@@ -483,7 +547,7 @@
             }
 
             const cardHtml = `
-                <div class="list-group-item" onclick="showDetails('${jobData}')">
+                <div class="list-group-item ${colorModifierClass}" onclick="showDetails('${jobData}')">
                     <div class="job-card-header">
                         <div style="flex-grow: 1;">
                             <h3 class="job-company-name">${job.company_name}</h3>
@@ -518,7 +582,6 @@
                     </div>
                 </div>`;
 
-            // Separate jobs based on their rejection statuses
             if (job.status === "rejected without applying" || job.status === "rejected after applying") {
                 rejectedContainer.innerHTML += cardHtml;
                 rejectedCount++;
@@ -528,7 +591,6 @@
             }
         });
 
-        // Dynamic tracking title updates
         document.getElementById('active-title').innerText = `Active jobs (${activeCount})`;
         document.getElementById('rejected-title').innerText = `Rejected jobs (${rejectedCount})`;
     }
@@ -576,7 +638,6 @@
                 msgEl.innerText = `Status updated to "${newStatus}"`;
                 toast.show();
                 
-                // Reload container items dynamically to bounce jobs to appropriate category sections
                 loadJobs();
             } else {
                 throw new Error(data.message || 'Failed to update status');
