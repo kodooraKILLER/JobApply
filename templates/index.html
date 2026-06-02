@@ -118,6 +118,13 @@
             margin: 0;
         }
 
+        .job-days-ago {
+            font-size: 0.8rem;
+            color: #64748b;
+            font-weight: normal;
+            margin-left: 0.5rem;
+        }
+
         .job-actions {
             display: flex;
             align-items: center;
@@ -154,6 +161,11 @@
             0%, 100% { text-shadow: 0 0 5px #38bdf8, 0 0 10px #3b82f6; }
             50% { text-shadow: 0 0 15px #7dd3fc, 0 0 20px #60a5fa; }
         }
+
+        @keyframes glow-red {
+            0%, 100% { text-shadow: 0 0 5px #ef4444, 0 0 10px #dc2626; filter: drop-shadow(0 0 2px #ef4444); }
+            50% { text-shadow: 0 0 12px #f87171, 0 0 18px #ef4444; filter: drop-shadow(0 0 5px #f87171); }
+        }
         
         .resume-star {
             cursor: pointer;
@@ -170,6 +182,11 @@
         .resume-star.generated {
             animation: glow-blue 1.5s ease-in-out infinite;
             color: #38bdf8; 
+        }
+
+        .resume-star.failed {
+            animation: glow-red 1.5s ease-in-out infinite;
+            color: #ef4444 !important;
         }
 
         /* Copy Button Icon Placement Styling */
@@ -376,6 +393,7 @@
         <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addJobModal">Add Job to Track</button>
     </div>
 
+    <!-- Active Section -->
     <div class="mb-5">
         <h2 class="mb-4" id="active-title">Active jobs (0)</h2>
         <div id="active-job-list" class="job-grid"></div>
@@ -383,6 +401,15 @@
 
     <hr class="my-5" style="border-color: #334155;">
 
+    <!-- Applied Section -->
+    <div class="mb-5">
+        <h2 class="mb-4" id="applied-title">Applied jobs (0)</h2>
+        <div id="applied-job-list" class="job-grid"></div>
+    </div>
+
+    <hr class="my-5" style="border-color: #334155;">
+
+    <!-- Rejected Section -->
     <div class="mb-5">
         <button class="section-header-btn collapsed mb-4" type="button" data-bs-toggle="collapse" data-bs-target="#rejectedCollapse" aria-expanded="false" aria-controls="rejectedCollapse">
             <i class="bi bi-chevron-down"></i>
@@ -517,17 +544,40 @@
         }
     }
 
+    /* Computes relative text string (X days ago) based on backend date_added */
+    function getDaysAgoText(dateString) {
+        if (!dateString) return '';
+        
+        const addedDate = new Date(dateString);
+        const today = new Date();
+        
+        // Zero out the hours to get clean calendar day differences
+        addedDate.setHours(0,0,0,0);
+        today.setHours(0,0,0,0);
+        
+        const diffTime = today - addedDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays < 0) return '';
+        if (diffDays === 0) return '<span class="job-days-ago">(Today)</span>';
+        if (diffDays === 1) return '<span class="job-days-ago">(1 day ago)</span>';
+        return `<span class="job-days-ago">(${diffDays} days ago)</span>`;
+    }
+
     async function loadJobs() {
         const response = await fetch('/jobs');
         const jobs = await response.json();
         
         const activeContainer = document.getElementById('active-job-list');
+        const appliedContainer = document.getElementById('applied-job-list');
         const rejectedContainer = document.getElementById('rejected-job-list');
         
         activeContainer.innerHTML = '';
+        appliedContainer.innerHTML = '';
         rejectedContainer.innerHTML = '';
 
         let activeCount = 0;
+        let appliedCount = 0;
         let rejectedCount = 0;
 
         jobs.forEach(job => {
@@ -537,20 +587,23 @@
 
             const jobData = encodeURIComponent(JSON.stringify(job));
             const colorModifierClass = getStatusClass(job.status);
+            const daysAgoHtml = getDaysAgoText(job.date_added);
             
             let starHtml = '';
-            if (job.resume_generated) {
-                starHtml = `<span class="resume-star generated" onclick="redirectToComparison(${job.id})" title="View tailored resume">⭐</span>`;
+            if (job.resume_generated === 1) {
+                starHtml = `<span class="resume-star generated" onclick="event.stopPropagation(); redirectToComparison(${job.id})" title="View tailored resume">⭐</span>`;
+            } else if (job.resume_generated === -1) {
+                starHtml = `<span class="resume-star failed" id="star-${job.id}" onclick="event.stopPropagation(); retriggerResumeGeneration(${job.id})" title="Generation failed. Click to re-trigger.">⭐</span>`;
             } else {
-                starHtml = `<span class="resume-star generating" id="star-${job.id}" title="Generating resume...">⭐</span>`;
-                startResomeCheckInterval(job.id);
+                starHtml = `<span class="resume-star generating" id="star-${job.id}" onclick="event.stopPropagation();" title="Generating resume...">⭐</span>`;
+                startResumeCheckInterval(job.id);
             }
 
             const cardHtml = `
                 <div class="list-group-item ${colorModifierClass}" onclick="showDetails('${jobData}')">
                     <div class="job-card-header">
                         <div style="flex-grow: 1;">
-                            <h3 class="job-company-name">${job.company_name}</h3>
+                            <h3 class="job-company-name">${job.company_name}${daysAgoHtml}</h3>
                             <a href="javascript:void(0)" onclick="event.stopPropagation(); showDetails('${jobData}')" class="text-decoration-none fw-normal designation-link">
                                 ${job.designation}
                             </a>
@@ -585,6 +638,9 @@
             if (job.status === "rejected without applying" || job.status === "rejected after applying") {
                 rejectedContainer.innerHTML += cardHtml;
                 rejectedCount++;
+            } else if (job.status === "applied with referral" || job.status === "applied without referral") {
+                appliedContainer.innerHTML += cardHtml;
+                appliedCount++;
             } else {
                 activeContainer.innerHTML += cardHtml;
                 activeCount++;
@@ -592,10 +648,11 @@
         });
 
         document.getElementById('active-title').innerText = `Active jobs (${activeCount})`;
+        document.getElementById('applied-title').innerText = `Applied jobs (${appliedCount})`;
         document.getElementById('rejected-title').innerText = `Rejected jobs (${rejectedCount})`;
     }
 
-    function startResomeCheckInterval(jobId) {
+    function startResumeCheckInterval(jobId) {
         if (jobResumeCheckIntervals[jobId]) {
             clearInterval(jobResumeCheckIntervals[jobId]);
         }
@@ -604,18 +661,70 @@
             const response = await fetch(`/resume-status/${jobId}`);
             const data = await response.json();
             
-            if (data.generated) {
+            const starElement = document.getElementById(`star-${jobId}`);
+            if (!starElement) {
+                clearInterval(jobResumeCheckIntervals[jobId]);
+                delete jobResumeCheckIntervals[jobId];
+                return;
+            }
+
+            if (data.generated === 1) {
                 clearInterval(jobResumeCheckIntervals[jobId]);
                 delete jobResumeCheckIntervals[jobId];
                 
-                const starElement = document.getElementById(`star-${jobId}`);
-                if (starElement) {
-                    starElement.className = 'resume-star generated';
-                    starElement.setAttribute('onclick', `redirectToComparison(${jobId})`);
-                    starElement.setAttribute('title', 'View tailored resume');
-                }
+                starElement.className = 'resume-star generated';
+                starElement.setAttribute('onclick', `event.stopPropagation(); redirectToComparison(${jobId})`);
+                starElement.setAttribute('title', 'View tailored resume');
+            } else if (data.generated === -1) {
+                clearInterval(jobResumeCheckIntervals[jobId]);
+                delete jobResumeCheckIntervals[jobId];
+                
+                starElement.className = 'resume-star failed';
+                starElement.setAttribute('onclick', `event.stopPropagation(); retriggerResumeGeneration(${jobId})`);
+                starElement.setAttribute('title', `Generation failed: ${data.error_message || 'API Error'}. Click to retry.`);
+                
+                showToast("bi bi-exclamation-octagon-fill text-danger", `Resume generation failed for job #${jobId}`);
             }
         }, 2000);
+    }
+
+    async function retriggerResumeGeneration(jobId) {
+        const starElement = document.getElementById(`star-${jobId}`);
+        if (starElement) {
+            // Instantly transition to rotation style while thread handles API allocation
+            starElement.className = 'resume-star generating';
+            starElement.removeAttribute('onclick');
+            starElement.setAttribute('title', 'Retrying resume generation...');
+        }
+
+        try {
+            const response = await fetch(`/regenerate-resume/${jobId}`, { method: 'POST' });
+            const data = await response.json();
+
+            if (response.ok) {
+                showToast("bi bi-arrow-clockwise text-info", "Re-triggered Gemini tailoring worker thread!");
+                startResumeCheckInterval(jobId);
+            } else {
+                throw new Error(data.message || "Failed execution query workflow.");
+            }
+        } catch (err) {
+            showToast("bi bi-x-circle-fill text-danger", `Error: ${err.message}`);
+            if (starElement) {
+                starElement.className = 'resume-star failed';
+                starElement.setAttribute('onclick', `event.stopPropagation(); retriggerResumeGeneration(${jobId})`);
+            }
+        }
+    }
+
+    function showToast(iconClass, message) {
+        const msgEl = document.getElementById('toast-message');
+        const iconEl = document.getElementById('toast-icon');
+        const toastNode = document.getElementById('popupToast');
+        const toast = new bootstrap.Toast(toastNode, { delay: 4000 });
+
+        iconEl.className = iconClass;
+        msgEl.innerText = message;
+        toast.show();
     }
 
     async function updateJobStatus(jobId, newStatus) {
@@ -629,29 +738,13 @@
             const data = await response.json();
 
             if (response.ok) {
-                const msgEl = document.getElementById('toast-message');
-                const iconEl = document.getElementById('toast-icon');
-                const toastNode = document.getElementById('popupToast');
-                const toast = new bootstrap.Toast(toastNode, { delay: 3000 });
-
-                iconEl.className = "bi bi-check-circle-fill text-success";
-                msgEl.innerText = `Status updated to "${newStatus}"`;
-                toast.show();
-                
+                showToast("bi bi-check-circle-fill text-success", `Status updated to "${newStatus}"`);
                 loadJobs();
             } else {
                 throw new Error(data.message || 'Failed to update status');
             }
         } catch (err) {
-            const msgEl = document.getElementById('toast-message');
-            const iconEl = document.getElementById('toast-icon');
-            const toastNode = document.getElementById('popupToast');
-            const toast = new bootstrap.Toast(toastNode, { delay: 3000 });
-
-            iconEl.className = "bi bi-exclamation-triangle-fill text-warning";
-            msgEl.innerText = "Failed to update job status";
-            toast.show();
-
+            showToast("bi bi-exclamation-triangle-fill text-warning", "Failed to update job status");
             loadJobs();
         }
     }
@@ -669,27 +762,12 @@
             const data = await response.json();
 
             if (response.ok) {
-                const msgEl = document.getElementById('toast-message');
-                const iconEl = document.getElementById('toast-icon');
-                const toastNode = document.getElementById('popupToast');
-                const toast = new bootstrap.Toast(toastNode, { delay: 2500 });
-
-                iconEl.className = "bi bi-check-circle-fill text-success";
-                msgEl.innerText = `Referrals updated to ${count}`;
-                toast.show();
+                showToast("bi bi-check-circle-fill text-success", `Referrals updated to ${count}`);
             } else {
                 throw new Error(data.message || 'Failed to update referrals');
             }
         } catch (err) {
-            const msgEl = document.getElementById('toast-message');
-            const iconEl = document.getElementById('toast-icon');
-            const toastNode = document.getElementById('popupToast');
-            const toast = new bootstrap.Toast(toastNode, { delay: 3000 });
-
-            iconEl.className = "bi bi-exclamation-triangle-fill text-warning";
-            msgEl.innerText = "Failed to update referrals";
-            toast.show();
-
+            showToast("bi bi-exclamation-triangle-fill text-warning", "Failed to update referrals");
             loadJobs();
         }
     }
@@ -705,50 +783,25 @@
         const message = `I'm Senthil, an Associate Data Engineer at JP Morgan Chase...\n\nI believe my skills are a strong match for the ${designation} position at ${companyName}. Can you please provide me a referral for this role?\n\nJoblink: ${jobUrl}`;
         
         navigator.clipboard.writeText(message).then(() => {
-            const msgEl = document.getElementById('toast-message');
-            const iconEl = document.getElementById('toast-icon');
-            const toastNode = document.getElementById('popupToast');
-            const toast = new bootstrap.Toast(toastNode, { delay: 2500 });
-
-            iconEl.className = "bi bi-check-circle-fill text-success";
-            msgEl.innerText = "Referral message copied to clipboard!";
-            toast.show();
+            showToast("bi bi-check-circle-fill text-success", "Referral message copied to clipboard!");
         }).catch(err => {
-            const msgEl = document.getElementById('toast-message');
-            const iconEl = document.getElementById('toast-icon');
-            const toastNode = document.getElementById('popupToast');
-            const toast = new bootstrap.Toast(toastNode, { delay: 3000 });
-
-            iconEl.className = "bi bi-exclamation-triangle-fill text-warning";
-            msgEl.innerText = "Failed to copy referral message";
-            toast.show();
+            showToast("bi bi-exclamation-triangle-fill text-warning", "Failed to copy referral message");
         });
     }
 
     async function copyResumePath(jobId) {
-        const msgEl = document.getElementById('toast-message');
-        const iconEl = document.getElementById('toast-icon');
-        const toastNode = document.getElementById('popupToast');
-        const toast = new bootstrap.Toast(toastNode, { delay: 3500 });
-
         try {
             const response = await fetch(`/fetch_resume_path/${jobId}`);
             const data = await response.json();
 
             if (response.ok && data.status === "success") {
                 await navigator.clipboard.writeText(data.resume_path);
-                iconEl.className = "bi bi-clipboard-check-fill text-success";
-                msgEl.innerText = "Path successfully copied to clipboard!";
-                toast.show();
+                showToast("bi bi-clipboard-check-fill text-success", "Path successfully copied to clipboard!");
             } else {
-                iconEl.className = "bi bi-exclamation-triangle-fill text-warning";
-                msgEl.innerText = data.message || "Resume path has not been formed yet.";
-                toast.show();
+                showToast("bi bi-exclamation-triangle-fill text-warning", data.message || "Resume path has not been formed yet.");
             }
         } catch (err) {
-            iconEl.className = "bi bi-x-circle-fill text-danger";
-            msgEl.innerText = "Failed to query the resume path.";
-            toast.show();
+            showToast("bi bi-x-circle-fill text-danger", "Failed to query the resume path.");
         }
     }
 

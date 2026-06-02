@@ -175,44 +175,92 @@ def summarise_job(job_description):
         return None
 
 def tailor_resume_background(job_id, job_description):
-    """Background task to tailor resume asynchronously"""
+    """Background task to tailor resume asynchronously with fallback error handling"""
     base_resume = load_base_resume()
-    if base_resume and job_description:
+    
+    # Initialize variables for failure capture
+    error_occurred = False
+    error_message = "Unknown error occurred during background execution."
+
+    if not base_resume:
+        error_occurred = True
+        error_message = "Base resume configuration JSON could not be loaded."
+    elif not job_description:
+        error_occurred = True
+        error_message = "Job description empty or invalid."
+    else:
+        # 1. Attempt Resume Tailoring via Gemini
         tailored_resume = tailor_resume_with_gemini(base_resume, job_description)
         
         if tailored_resume:
-            # Set up target path structured: resumes/{job_id}/
-            job_folder = os.path.join(RESUMES_DIR, str(job_id))
-            os.makedirs(job_folder, exist_ok=True)
-            # Save the tailored resume to a file
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            resume_filename = f"job_{job_id}_{timestamp}.json"
-            resume_path = os.path.join(TAILORED_RESUMES_DIR, resume_filename)
-            
-            with open(resume_path, 'w') as f:
-                json.dump(tailored_resume, f, indent=2)
-            # Absolute target path for the final PDF output filename
-            target_pdf_path = os.path.join(job_folder, "senthil_resume.pdf")
-            # Compile PDF directly into target folder
-            pdfgen.generate_pdf(resume_path, target_pdf_path)
-            
-            # Request LLM Summary evaluations before updating target row tracking flag
-            summary_data = summarise_job(job_description)
-            if summary_data:
-                summary_filename = f"job_{job_id}_summary.json"
-                summary_path = os.path.join(TAILORED_RESUMES_DIR, summary_filename)
-                try:
-                    with open(summary_path, 'w', encoding='utf-8') as f:
-                        json.dump(summary_data, f, indent=2)
-                except Exception as e:
-                    print(f"Failed to record summary JSON to disk: {e}")
+            try:
+                # Set up target path structured: resumes/{job_id}/
+                job_folder = os.path.join(RESUMES_DIR, str(job_id))
+                os.makedirs(job_folder, exist_ok=True)
+                
+                # Save the tailored resume to a file
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                resume_filename = f"job_{job_id}_{timestamp}.json"
+                resume_path = os.path.join(TAILORED_RESUMES_DIR, resume_filename)
+                
+                with open(resume_path, 'w') as f:
+                    json.dump(tailored_resume, f, indent=2)
+                
+                # Absolute target path for the final PDF output filename
+                target_pdf_path = os.path.join(job_folder, "senthil_resume.pdf")
+                # Compile PDF directly into target folder
+                pdfgen.generate_pdf(resume_path, target_pdf_path)
+                
+                # Request LLM Summary evaluations 
+                summary_data = summarise_job(job_description)
+                if summary_data:
+                    summary_filename = f"job_{job_id}_summary.json"
+                    summary_path = os.path.join(TAILORED_RESUMES_DIR, summary_filename)
+                    try:
+                        with open(summary_path, 'w', encoding='utf-8') as f:
+                            json.dump(summary_data, f, indent=2)
+                    except Exception as e:
+                        print(f"Failed to record summary JSON to disk: {e}")
 
-            # Update the job record with the resume path
+                # SUCCESS TRANSACTION UPDATE
+                conn = get_db_connection()
+                conn.execute('UPDATE jobs SET resume_path = ?, resume_generated = 1 WHERE id = ?',
+                            (resume_path, job_id))
+                conn.commit()
+                conn.close()
+                return # Exit function on successful build
+                
+            except Exception as e:
+                error_occurred = True
+                error_message = f"File compilation or storage update failure: {str(e)}"
+        else:
+            error_occurred = True
+            error_message = "Gemini AI pipeline failed to respond or encountered a rate limit."
+
+    # 2. FAILURE RECORDING BLOCK
+    if error_occurred:
+        try:
             conn = get_db_connection()
-            conn.execute('UPDATE jobs SET resume_path = ?, resume_generated = 1 WHERE id = ?',
-                        (resume_path, job_id))
+            job_row = conn.execute('SELECT params FROM jobs WHERE id = ?', (job_id,)).fetchone()
+            
+            try:
+                params = json.loads(job_row['params'] or '{}') if job_row else {}
+            except Exception:
+                params = {}
+            
+            # Pack error state details safely into tracking data map
+            params['error_log'] = error_message
+            params['failed_at'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            conn.execute('''
+                UPDATE jobs 
+                SET resume_generated = -1, params = ? 
+                WHERE id = ?
+            ''', (json.dumps(params), job_id))
             conn.commit()
             conn.close()
+        except Exception as db_err:
+            print(f"CRITICAL: Failed to write error fallback state to database: {db_err}")
 
 @app.route('/')
 def index():
@@ -640,13 +688,28 @@ def add_job():
 
 @app.route('/resume/<int:job_id>', methods=['GET'])
 def get_resume(job_id):
-    """Fetch the tailored resume for a specific job"""
+    """Fetch the tailored resume for a specific job, with fallback error detection"""
     conn = get_db_connection()
-    job = conn.execute('SELECT resume_path, resume_generated FROM jobs WHERE id = ?', (job_id,)).fetchone()
+    job = conn.execute('SELECT resume_path, resume_generated, params FROM jobs WHERE id = ?', (job_id,)).fetchone()
     conn.close()
     
-    if not job or not job['resume_path']:
-        return jsonify({"error": "Resume not found"}), 404
+    if not job:
+        return jsonify({"error": "Job tracking row not found"}), 404
+        
+    if job['resume_generated'] == -1:
+        try:
+            params = json.loads(job['params'] or '{}')
+            err_msg = params.get('error_log', "Pipeline execution exception.")
+        except Exception:
+            err_msg = "Unknown background processing fault."
+        return jsonify({
+            "error": "Resume generation failed",
+            "generated": -1,
+            "details": err_msg
+        }), 422
+    
+    if not job['resume_path'] or not os.path.exists(job['resume_path']):
+        return jsonify({"error": "Resume file path not found or still generating", "generated": job['resume_generated']}), 404
     
     try:
         with open(job['resume_path'], 'r') as f:
@@ -655,17 +718,67 @@ def get_resume(job_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/regenerate-resume/<int:job_id>', methods=['POST'])
+def regenerate_resume(job_id):
+    """Resets tracking keys and fires the background LLM thread to retry generation."""
+    try:
+        conn = get_db_connection()
+        job_row = conn.execute('SELECT job_description FROM jobs WHERE id = ?', (job_id,)).fetchone()
+        
+        if not job_row:
+            conn.close()
+            return jsonify({"status": "error", "message": "Job record missing."}), 404
+
+        job_description = job_row['job_description']
+        
+        if not job_description:
+            conn.close()
+            return jsonify({"status": "error", "message": "Cannot generate resume without a job description."}), 400
+
+        # Reset row status flag back to 0 (generating)
+        conn.execute('UPDATE jobs SET resume_generated = 0 WHERE id = ?', (job_id,))
+        conn.commit()
+        conn.close()
+
+        # Spin up worker subprocess thread 
+        background_thread = threading.Thread(
+            target=tailor_resume_background,
+            args=(job_id, job_description),
+            daemon=True
+        )
+        background_thread.start()
+
+        return jsonify({
+            "status": "success",
+            "message": "Resume generation process re-triggered successfully!"
+        }), 200
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
+
 @app.route('/resume-status/<int:job_id>', methods=['GET'])
 def resume_status(job_id):
-    """Check if resume has been generated"""
+    """Check if resume has been generated, is compiling, or encountered an LLM fault"""
     conn = get_db_connection()
-    job = conn.execute('SELECT resume_generated FROM jobs WHERE id = ?', (job_id,)).fetchone()
+    job = conn.execute('SELECT resume_generated, params FROM jobs WHERE id = ?', (job_id,)).fetchone()
     conn.close()
     
     if not job:
         return jsonify({"error": "Job not found"}), 404
     
-    return jsonify({"generated": job['resume_generated']})
+    status_code = job['resume_generated']
+    response_payload = {"generated": status_code}
+    
+    # If a failure was caught, pass the logged context text back out 
+    if status_code == -1:
+        try:
+            params = json.loads(job['params'] or '{}')
+            response_payload['error_message'] = params.get('error_log', "API pipeline error.")
+        except Exception:
+            response_payload['error_message'] = "Failed parsing background configuration details."
+            
+    return jsonify(response_payload)
 
 @app.route('/base-resume', methods=['GET'])
 def get_base_resume():
