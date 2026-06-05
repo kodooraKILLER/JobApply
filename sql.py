@@ -6,6 +6,7 @@ DB_FILE = "jobs.db"
 
 # The specific SQL query you want to execute
 qry = "UPDATE jobs SET resume_generated = -1 WHERE resume_generated = 0;"
+qry = "UPDATE jobs SET job_url = 'https://visa.wd5.myworkdayjobs.com/en-US/Visa/job/Sr-SW-Engineer---PySpark---Spark-SQL---Scala---Big-Data---ETL_REF081993W?locationCountry=c4f78be1a8f14da0ab49ce1162348a5e' where id=11"
 
 def execute_manual_query(sql_query):
     if not os.path.exists(DB_FILE):

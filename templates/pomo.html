@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomodoro Timer</title>
+    
+    <!-- Match standard application assets from index.html -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2338bdf8'%3E%3Cpath d='M12 2L14.85 9.15L22 12L14.85 14.85L12 22L9.15 14.85L2 12L9.15 9.15L12 2Z'/%3E%3C/svg%3E">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    
+    <style>
+        body { 
+            background-color: #0f172a; 
+            color: #f8fafc; 
+        }
+
+        .timer-card {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+            max-width: 500px;
+            margin: 4rem auto;
+            padding: 2.5rem !important;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .timer-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #38bdf8, #8b5cf6);
+        }
+
+        .timer-display {
+            font-size: 5.5rem;
+            font-weight: 200;
+            letter-spacing: -0.05em;
+            color: #ffffff;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        /* Match custom status-dropdown aesthetics from index.html */
+        .goal-dropdown {
+            appearance: none;
+            background-color: #0f172a;
+            border: 1px solid #334155;
+            color: #38bdf8;
+            font-size: 1rem;
+            font-weight: 500;
+            padding: 0.6rem 2.5rem 0.6rem 1rem;
+            cursor: pointer;
+            border-radius: 8px;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1.2em;
+            transition: all 0.2s ease;
+        }
+
+        .goal-dropdown:hover {
+            border-color: #38bdf8;
+        }
+
+        .goal-dropdown:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+        }
+
+        .goal-dropdown option {
+            background-color: #1e293b;
+            color: #f1f5f9;
+        }
+
+        .active-banner {
+            background-color: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            color: #38bdf8;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        /* Match toast popup structures from index.html */
+        .toast-container { z-index: 1055; }
+        .custom-toast { background-color: #1e293b; color: #f8fafc; border: 1px solid #334155; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- Navbar/Header Alignment matching layout of index.html -->
+    <div class="d-flex justify-content-between align-items-center mt-5 mb-2 px-2" style="max-width: 500px; margin: 0 auto;">
+        <h1 class="h3 m-0 font-weight-bold">Focus Session</h1>
+        <a href="index.html" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+            <i class="bi bi-briefcase me-1"></i> Job Tracker
+        </a>
+    </div>
+
+    <!-- Core Timer Block Component -->
+    <div class="timer-card text-center">
+        <div class="mb-4 text-start">
+            <label class="form-label small text-uppercase tracking-wider text-muted fw-bold mb-2">Target Goal Focus</label>
+            <select id="goalSelect" class="w-100 goal-dropdown">
+                <option value="Study">Study</option>
+                <option value="Jobhunt">Jobhunt</option>
+                <option value="Job Apply">Job Apply</option>
+                <option value="Improve App">Improve App</option>
+            </select>
+        </div>
+
+        <div class="my-4">
+            <div id="timerDisplay" class="timer-display">25:00</div>
+            <p id="statusText" class="text-muted text-uppercase tracking-widest small mt-2">System Ready</p>
+        </div>
+
+        <div class="d-flex gap-3 mt-4">
+            <button id="startBtn" onclick="startTimer()" class="btn btn-primary btn-lg w-100 py-2.5 rounded-3 fw-medium">
+                <i class="bi bi-play-fill me-1"></i> Start Session
+            </button>
+            <button id="stopBtn" onclick="stopTimer()" disabled class="btn btn-outline-danger btn-lg w-100 py-2.5 rounded-3 fw-medium">
+                <i class="bi bi-stop-fill me-1"></i> End Focus
+            </button>
+        </div>
+
+        <!-- Dynamic Session Info Banner -->
+        <div id="activeBanner" class="d-none mt-4 p-2.5 active-banner text-center fw-medium">
+            <i class="bi bi-lightning-charge-fill me-1 animate-pulse"></i> Syncing state data with active backend worker...
+        </div>
+    </div>
+</div>
+
+<!-- Integrated Bootstrap Toast Notifications identical to index.html pattern -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+    <div id="popupToast" class="toast custom-toast" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex align-items-center p-2">
+            <div id="toast-icon" class="me-2 fs-5"></div>
+            <div class="toast-body fw-medium" id="toast-message">
+                Placeholder tracking context.
+            </div>
+            <button type="button" class="btn-close btn-close-white ms-auto me-1" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://127.0.0.1:8000";
+    let currentTimerId = null;
+    let countdownInterval = null;
+    let defaultSeconds = 25 * 60;
+
+    // Element Target Handlers
+    const timerDisplay = document.getElementById('timerDisplay');
+    const statusText = document.getElementById('statusText');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const goalSelect = document.getElementById('goalSelect');
+    const activeBanner = document.getElementById('activeBanner');
+
+    window.addEventListener('DOMContentLoaded', checkActiveTimer);
+
+    // Modularized Toast notification mirror framework derived from index.html template design
+    function showToast(iconClass, message) {
+        const msgEl = document.getElementById('toast-message');
+        const iconEl = document.getElementById('toast-icon');
+        const toastNode = document.getElementById('popupToast');
+        const toast = new bootstrap.Toast(toastNode, { delay: 5000 });
+
+        iconEl.className = iconClass;
+        msgEl.innerText = message;
+        toast.show();
+    }
+
+    async function checkActiveTimer() {
+        try {
+            const response = await fetch(`${API_URL}/timers/active`);
+            const activeTimers = await response.json();
+            
+            if (activeTimers.length > 0) {
+                const active = activeTimers[0];
+                currentTimerId = active.id;
+                goalSelect.value = active.goal;
+                
+                const startTime = new Date(active.start_time + "Z");
+                const now = new Date();
+                const elapsedSeconds = Math.floor((now - startTime) / 1000);
+                
+                if (elapsedSeconds < defaultSeconds) {
+                    const remaining = defaultSeconds - elapsedSeconds;
+                    uiStateRunning();
+                    startVisualCountdown(remaining);
+                    showToast("bi bi-arrow-clockwise text-info", `Resumed active session targeting "${active.goal}"`);
+                } else {
+                    uiStateRunning();
+                    statusText.innerText = `Overtime: ${active.goal}`;
+                    statusText.classList.add('text-warning');
+                    timerDisplay.innerText = "00:00";
+                }
+            }
+        } catch (error) {
+            showToast("bi bi-exclamation-triangle-fill text-danger", "Backend runtime disconnected. Cannot sync history state.");
+        }
+    }
+
+    async function startTimer() {
+        const selectedGoal = goalSelect.value;
+        
+        try {
+            const response = await fetch(`${API_URL}/timers/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ goal: selectedGoal })
+            });
+            
+            if (!response.ok) throw new Error("Could not initialize transaction block.");
+            
+            const data = await response.json();
+            currentTimerId = data.timer_id;
+            
+            uiStateRunning();
+            startVisualCountdown(defaultSeconds);
+            showToast("bi bi-check-circle-fill text-success", `Timer session tracking started for ${selectedGoal}!`);
+        } catch (error) {
+            showToast("bi bi-x-circle-fill text-danger", error.message);
+        }
+    }
+
+    async function stopTimer() {
+        if (!currentTimerId) return;
+
+        try {
+            const response = await fetch(`${API_URL}/timers/${currentTimerId}/stop`, {
+                method: 'POST'
+            });
+            
+            if (!response.ok) throw new Error("Stop transaction sequence rejected.");
+            
+            const data = await response.json();
+            clearInterval(countdownInterval);
+            
+            const targetGoalName = goalSelect.value;
+            uiStateIdle();
+            
+            showToast("bi bi-trophy-fill text-warning", `Completed! Logged ${data.duration_minutes} mins under focus target [${targetGoalName}].`);
+            currentTimerId = null;
+        } catch (error) {
+            showToast("bi bi-exclamation-octagon-fill text-danger", error.message);
+        }
+    }
+
+    function startVisualCountdown(durationInSeconds) {
+        clearInterval(countdownInterval);
+        let timeRemaining = durationInSeconds;
+
+        displayTime(timeRemaining);
+
+        countdownInterval = setInterval(() => {
+            timeRemaining--;
+            if (timeRemaining >= 0) {
+                displayTime(timeRemaining);
+            } else {
+                clearInterval(countdownInterval);
+                statusText.innerText = "Time window reached! Wrap up context.";
+                statusText.className = "text-info small text-uppercase tracking-widest mt-2 fw-bold";
+                showToast("bi bi-bell-fill text-info", "Pomodoro interval finished! Time to evaluate your milestones.");
+            }
+        }, 1000);
+    }
+
+    function displayTime(seconds) {
+        const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+        const secs = (seconds % 60).toString().padStart(2, '0');
+        timerDisplay.innerText = `${mins}:${secs}`;
+    }
+
+    function uiStateRunning() {
+        startBtn.disabled = true;
+        startBtn.classList.add('opacity-50');
+        stopBtn.disabled = false;
+        goalSelect.disabled = true;
+        statusText.innerText = `Focus Processing: ${goalSelect.value}`;
+        statusText.className = "text-primary small text-uppercase tracking-widest mt-2 fw-bold";
+        activeBanner.classList.remove('d-none');
+        activeBanner.innerHTML = `<i class="bi bi-lightning-charge-fill me-1"></i> Active DB Session Identifier: <strong>#${currentTimerId}</strong>`;
+    }
+
+    function uiStateIdle() {
+        startBtn.disabled = false;
+        startBtn.classList.remove('opacity-50');
+        stopBtn.disabled = true;
+        goalSelect.disabled = false;
+        statusText.innerText = "System Ready";
+        statusText.className = "text-muted small text-uppercase tracking-widest mt-2";
+        timerDisplay.innerText = "25:00";
+        activeBanner.classList.add('d-none');
+    }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
