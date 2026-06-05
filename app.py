@@ -265,6 +265,9 @@ def tailor_resume_background(job_id, job_description):
 @app.route('/')
 def index():
     return render_template('index.html')
+@app.route('/pomo')
+def pomo():
+    return render_template('pomo.html')
 
 @app.route('/update-job-status/<int:job_id>', methods=['PUT'])
 def update_job_status(job_id):
