@@ -1080,6 +1080,7 @@
     };
 
     /* Mini Pomodoro Framework Implementation Functions */
+/* Mini Pomodoro Framework Implementation Functions */
     async function checkActivePomoSession() {
         try {
             const response = await fetch(`${POMO_API_URL}/timers/active`);
@@ -1090,10 +1091,14 @@
                 pomoTimerId = active.id;
                 document.getElementById('miniPomoGoal').value = active.goal;
                 
+                // Parse backend start timestamp assuming UTC baseline format
                 const startTime = new Date(active.start_time + "Z");
                 const now = new Date();
                 const elapsedSeconds = Math.floor((now - startTime) / 1000);
                 
+                // Clear any leftover interval loops to avoid duplicate ticking layers
+                clearInterval(pomoCountdownInterval);
+
                 if (elapsedSeconds < pomoCurrentConfigSeconds) {
                     const remaining = pomoCurrentConfigSeconds - elapsedSeconds;
                     setMiniTimerUI(true);
@@ -1101,13 +1106,22 @@
                 } else {
                     setMiniTimerUI(true);
                     document.getElementById('miniTimerDisplay').innerText = "00:00";
+                    // Clear out ticking styling, but leave the stop button ready
+                    document.getElementById('miniTimerDisplay').classList.remove('active-counting');
+                }
+            } else {
+                // If no active session exists on the server, reset the UI to pristine default
+                if (pomoTimerId !== null) {
+                    clearInterval(pomoCountdownInterval);
+                    pomoTimerId = null;
+                    setMiniTimerUI(false);
                 }
             }
         } catch (e) {
             console.log("Pomodoro runtime service offline at port 8000.");
         }
     }
-
+    
     /* Handles setup configuration increments/decrements before running the timer session loop */
     function adjustPomoTime(minutesDelta) {
         if (pomoTimerId !== null) return; // Prevent adjustment when active
@@ -1138,7 +1152,7 @@
             
             setMiniTimerUI(true);
             runMiniCountdown(pomoCurrentConfigSeconds);
-            showToast("bi bi-clock-history text-primary", `Pomodoro started for focus target: ${selectedGoal}`);
+            showToast("bi bi-clock-history text-primary", `Pomodoro started for focus: ${selectedGoal}`);
         } catch (err) {
             showToast("bi bi-x-circle-fill text-danger", err.message);
         }
@@ -1154,7 +1168,7 @@
             clearInterval(pomoCountdownInterval);
             
             setMiniTimerUI(false);
-            showToast("bi bi-trophy-fill text-warning", `Logged ${data.duration_minutes} focus minutes into database tracking stack!`);
+            showToast("bi bi-trophy-fill text-warning", `Logged ${data.duration_minutes} focus minutes!`);
             pomoTimerId = null;
         } catch (err) {
             showToast("bi bi-exclamation-octagon-fill text-danger", err.message);
